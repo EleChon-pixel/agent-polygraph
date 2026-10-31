@@ -12,9 +12,9 @@ Use these exact fields:
 - Repository: `agent-polygraph`
 - Workflow filename: `publish-npm.yml`
 - Environment name: leave blank (the workflow has no GitHub environment)
-- Allowed actions: enable **npm publish** (not just stage publish)
+- Allowed actions: leave **npm publish** unchecked; **npm stage publish** is permitted by default. No direct or dist-tag permissions are needed.
 
-The configuration is an action only the npm package owner can authorize. Do **not** paste npm access tokens into GitHub workflows or this repository. New npm trusted-publisher registrations may require an initial successful publish within 48 hours. See [official npm guidance](https://docs.npmjs.com/trusted-publishers/).
+The configuration is an action only the npm package owner can authorize. Do **not** paste npm access tokens into GitHub workflows or this repository. New npm trusted-publisher registrations require a successful first publish within 48 hours to validate the configuration; stage the package and approve it promptly. See [official npm guidance](https://docs.npmjs.com/trusted-publishers/).
 
 ## Verify readiness
 
@@ -27,15 +27,15 @@ npm test
 node scripts/release-check.mjs
 ```
 
-## Publish 0.2.0
+## Stage and approve 0.2.0
 
 After configuring the npm trusted publisher and confirming that CI is green:
 
-1. Open [GitHub Actions → Publish npm release (trusted publisher)](https://github.com/EleChon-pixel/agent-polygraph/actions/workflows/publish-npm.yml).
+1. Open [GitHub Actions → Stage npm release (trusted publisher)](https://github.com/EleChon-pixel/agent-polygraph/actions/workflows/publish-npm.yml).
 2. Choose **Run workflow**, branch `main`, version `0.2.0`.
-3. The workflow validates that `package.json` and the Claude plugin both declare that version, checks the registry for duplicates, reruns tests, validates the tarball, then publishes through ephemeral GitHub OIDC credentials.
-4. Check that `npm view agent-polygraph version` reports `0.2.0`. Run `npx --yes agent-polygraph@0.2.0 --demo` on a clean machine.
-5. Only after the registry confirms publication should documentation treat `npx agent-polygraph` as installing the security-hardened version.
+3. The workflow validates the package and uses `npm stage publish` with short-lived GitHub OIDC credentials. This **stages** the tarball but does **not** make `0.2.0` publicly installable yet.
+4. On npmjs.com, open the **Staged Packages** tab, review the staged package and approve it with your account's **2FA**. Wait for npm's malware scan to finish if approval is unavailable.
+5. Check that `npm view agent-polygraph version` reports `0.2.0`. Run `npx --yes agent-polygraph@0.2.0 --demo` on a clean machine. Only then should the README advertise it as the npm release.
 
 **Never try to republish an existing npm version**; npm versions are immutable. For later releases, bump `package.json` and `.claude-plugin/plugin.json` together, then use the new version in the workflow's manual input.
 
