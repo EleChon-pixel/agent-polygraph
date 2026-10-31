@@ -1,5 +1,9 @@
 name: Stage npm release (trusted publisher)
 on:
+  push:
+    paths:
+      - .github/workflows/publish-npm.yml
+      - scripts/verify-npm-oidc.mjs
   workflow_dispatch:
     inputs:
       version:
@@ -9,8 +13,25 @@ on:
 permissions:
   contents: read
 jobs:
+  oidc-diagnostic:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'EleChon-pixel/agent-polygraph'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Check exact npm trusted-publisher identity without publishing
+        run: node scripts/verify-npm-oidc.mjs
   publish:
-    if: github.ref == 'refs/heads/main' && github.repository == 'EleChon-pixel/agent-polygraph'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'EleChon-pixel/agent-polygraph'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
