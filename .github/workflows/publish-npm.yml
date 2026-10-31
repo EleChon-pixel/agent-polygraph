@@ -26,7 +26,8 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+          # Don't set registry-url: setup-node v6 creates a dummy _authToken
+          # which makes npm fall back to invalid token auth instead of OIDC.
           package-manager-cache: false
       - name: Install pinned npm CLI with staged publishing support
         run: npm install --global npm@11.21.0
@@ -51,5 +52,28 @@ jobs:
             echo "::error::This npm version already exists. Versions cannot be overwritten."
             exit 1
           fi
+      - name: Verify OIDC is available and no npm token is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::GitHub OIDC is not available. Check the job's id-token: write permission."
+            exit 1
+          fi
+          # This release deliberately uses OIDC; credentials in npmrc or env
+          # can silently override OIDC and trigger E401.
+          if [[ -n "${NODE_AUTH_TOKEN:-}" || -n "${NPM_TOKEN:-}" ]]; then
+            echo "::error::A legacy npm token is configured; this release must use OIDC."
+            exit 1
+          fi
+          for npmrc in ".npmrc" "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"; do
+            if [[ -f "$npmrc" ]] && grep -Eq '_authToken|_auth=' "$npmrc"; then
+              echo "::error::An npm token entry is present in npmrc; remove it to allow OIDC."
+              exit 1
+            fi
+          done
+          echo "GitHub OIDC available; no legacy npm token configured."
       - name: Stage with GitHub OIDC (maintainer approval and 2FA required)
+        env:
+          npm_config_registry: https://registry.npmjs.org/
         run: npm stage publish
