@@ -137,7 +137,7 @@ export function snapshot(cwd) {
     const file = path.join(root, name);
     try {
       const st = fs.lstatSync(file);
-      if (st.isSymbolicLink()) continue; // never follow links outside the checkout
+      if (st.isSymbolicLink()) { complete = false; continue; } // never follow links or certify an unresolved change
       if (!st.isFile() || st.size > MAX_SOURCE_BYTES) { complete = false; continue; }
       // Re-check after reading so concurrent writes cannot produce a false receipt.
       const contents = fs.readFileSync(file);
