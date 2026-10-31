@@ -20,7 +20,7 @@ __apg_esc() {
 __apg_pre() {
   __apg_runner=
   # Conservative: do not treat compound commands (e.g. npm test; true) as proof.
-  case "$1" in *';'*|*'|'*|*'&'*|*'\x60'*|*'$('*|*$'\n'*) return 0 ;; esac
+  case "$1" in *';'*|*'|'*|*'&'*|*'`'*|*'$('*|*$'\n'*) return 0 ;; esac
   local c="${1#${1%%[![:space:]]*}}"
   case "$c" in
     "pytest"|"pytest "*|"python -m pytest"*|"python3 -m pytest"*) __apg_runner="pytest" ;;
@@ -42,7 +42,7 @@ __apg_post() {
   if [ -n "$__apg_runner" ]; then
     # The CLI validates input and writes with O_NOFOLLOW; shell redirection
     # cannot be used here because it would follow an attacker-created symlink.
-    printf '{"v":2,"kind":"terminal","start":%s,"end":%s,"exit":%s,"cwd":"%s","runner":"%s"}\\n' \\
+    printf '{"v":2,"kind":"terminal","start":%s,"end":%s,"exit":%s,"cwd":"%s","runner":"%s"}\n' \
       "$__apg_t0" "$(__apg_now)" "$s" "$(__apg_esc "$__apg_dir")" "$__apg_runner" |
       "$__apg_node" "$__apg_entry" record --shell-event >/dev/null 2>&1
     __apg_runner=
