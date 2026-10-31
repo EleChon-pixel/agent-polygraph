@@ -355,7 +355,7 @@ const SHELL_SNIPPET = () => fs.readFileSync(new URL("./shell/record.sh", import.
   .replace("__APG_NODE__", shQuote(process.execPath))
   .replace("__APG_ENTRY__", shQuote(fs.realpathSync(fileURLToPath(new URL("../bin/polygraph.js", import.meta.url)))));
 
-const RC_FILES = () => [".bashrc", ".zshrc"].map((f) => path.join(os.homedir(), f));
+const RC_FILES = () => [".bashrc", ".zshrc"].map((f) => path.join(process.env.HOME || os.homedir(), f));
 
 export function installShell() {
   const script = shellScript();
