@@ -11,7 +11,9 @@ import crypto from "node:crypto";
 import * as claude from "../src/sources/claude.js";
 import { analyzeSession } from "../src/analyze.js";
 
-const DATASET = "clem/ml-intern-sessions"; // separate from all prior evaluation corpora
+const DATASET = process.env.HOLDOUT_DATASET || "trace-commons/agent-traces";
+const PREFIX = process.env.HOLDOUT_PREFIX || "sessions/claude_code/";
+const EXCLUDE_REV = process.env.HOLDOUT_EXCLUDE_REV || "112ebd4d03ce852b00e935d523107c3d0c9a65bf";
 const pin = process.env.HOLDOUT_REV || "main";
 const MAX_FILES = 100;
 const MAX_BYTES = 2_000_000;
@@ -71,7 +73,7 @@ function independentlyLabel(recs) {
   }
   return labels;
 }
-const results = { source: DATASET, revision: null, totalListed: 0, filesRead: 0, bytesRead: 0,
+const results = { source: DATASET, revision: null, excludedEarlierRevision: EXCLUDE_REV || null, totalListed: 0, newNames: 0, filesRead: 0, bytesRead: 0, rawAssistantMessages: 0, rawToolUses: 0, rawExplicitTestCommands: 0, rawCodeEdits: 0,
   filesParsed: 0, oracleEligible: 0, oracleAbstained: 0, compared: 0, agreement: 0,
   matrix: {}, mismatchHashes: [], abstentionReasons: {}, readErrors: 0,
   limits: { maxFiles:MAX_FILES, maxFileBytes:MAX_BYTES, maxTotalBytes:MAX_TOTAL },
@@ -85,10 +87,21 @@ try {
     if (!/^[a-f0-9]{40}$/.test(pin)) fail("invalid pinned commit SHA");
   }
   results.revision = pin === "main" ? sha : pin;
-  const siblings = (metadata.siblings || []).map(x=>x.rfilename).filter(x=>x && x.endsWith(".jsonl") && x.startsWith("sessions/")).sort();
+  const siblings = (metadata.siblings || []).map(x=>x.rfilename).filter(x=>x && x.endsWith(".jsonl") && x.startsWith(PREFIX)).sort();
   results.totalListed = siblings.length;
   if (!siblings.length) fail("no raw sessions discovered in dataset listing");
-  for (const [i, name] of siblings.entries()) {
+  let previous = new Set();
+  if (EXCLUDE_REV) {
+    const oldUrl = "https://huggingface.co/api/datasets/" + DATASET + "/tree/" + EXCLUDE_REV + "/" + PREFIX.replace(/\/$/,"");
+    const res = await fetch(oldUrl);
+    if (!res.ok) fail("cannot list preexisting evaluation corpus: HTTP " + res.status);
+    const manifest = await res.json();
+    if (!Array.isArray(manifest)) fail("preexisting corpus manifest is not an array");
+    previous = new Set(manifest.map(x=>x.path).filter(Boolean));
+  }
+  const unseen = siblings.filter(x=>!previous.has(x));
+  results.newNames = unseen.length;
+  for (const [i, name] of unseen.entries()) {
     if (results.filesRead >= MAX_FILES || results.bytesRead >= MAX_TOTAL) break;
     const remote = "https://huggingface.co/datasets/" + DATASET + "/resolve/" + results.revision + "/" + name.split("/").map(encodeURIComponent).join("/");
     try {
@@ -102,6 +115,16 @@ try {
       results.filesRead++;
       const raw = buf.toString("utf8");
       const recs = raw.split("\n").filter(Boolean).map(line=>JSON.parse(line));
+      for (const r of recs) {
+        if (r.type !== "assistant") continue;
+        const entries = Array.isArray(r.message?.content) ? r.message.content : [];
+        results.rawAssistantMessages++;
+        for (const item of entries) if (item?.type === "tool_use") {
+          results.rawToolUses++;
+          if (["Edit","Write","MultiEdit","NotebookEdit"].includes(item.name)) results.rawCodeEdits++;
+          if (["Bash","PowerShell"].includes(item.name) && exactTest.test(String(item.input?.command || "").trim())) results.rawExplicitTestCommands++;
+        }
+      }
       const references = independentlyLabel(recs);
       if (!references.length) continue;
       const local = path.join(dir,"trace-"+i+".jsonl");
@@ -131,7 +154,7 @@ try {
   }
   results.agreementRate = results.compared ? Number((results.agreement/results.compared).toFixed(3)) : null;
   console.log(JSON.stringify(results,null,2));
-  if (!results.filesRead) fail("no session bytes downloaded");
+  if (!results.filesRead) console.error("No previously unseen, accessible transcripts found; accuracy is unmeasured.");
 } finally {
   fs.rmSync(dir,{recursive:true,force:true});
 }
