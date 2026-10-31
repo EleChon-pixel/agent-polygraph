@@ -39,6 +39,14 @@ After configuring the npm trusted publisher and confirming that CI is green:
 
 **Never try to republish an existing npm version**; npm versions are immutable. For later releases, bump `package.json` and `.claude-plugin/plugin.json` together, then use the new version in the workflow's manual input.
 
+## Troubleshooting npm staging authentication
+
+If GitHub Actions fails at `npm stage publish` with `E401` but tests and package validation pass, inspect the **Stage with GitHub OIDC** job and the npm trusted-publisher identity.
+
+The earlier release attempt failed because `actions/setup-node@v6` was configured with `registry-url`. That version generates an npm `_authToken` placeholder pointing to `NODE_AUTH_TOKEN`, even when there is no token. npm then attempts token authentication rather than the GitHub OIDC exchange and returns E401. The release workflow now omits `registry-url`, uses the default official npm registry and checks that OIDC is present and no token credentials are configured before staging. The [reported setup-node issue](https://github.com/actions/setup-node/issues/1551) documents this failure mode.
+
+If authentication still fails, check the npm Trusted Publisher settings match *exactly*: owner `EleChon-pixel`, repository `agent-polygraph`, workflow filename `publish-npm.yml`, and **no environment name**. Keep direct `npm publish` permission unchecked; staged publishing is sufficient. npm verifies these attributes at publish time, not on saving the form. Do not add a personal npm token as a workaround; that would defeat the trusted-publishing design.
+
 ## Recovery for installed hooks
 
 Installing or uninstalling the Claude Code/Codex hooks and modifying `~/.bashrc` or `~/.zshrc` now makes an owner-only backup of the original settings file before applying an atomic rename. The command prints each backup's exact location. Defaults are under `~/.agent-polygraph/backups` (or `$AGENT_POLYGRAPH_HOME/backups`). Backups may contain confidential original settings; don't commit or upload them. To restore, copy the desired backup over the exact original settings file after inspecting it. The installer preserves existing file permissions when replacing files, uses 0600 for newly created files on Unix, refuses symlinks and hard-linked configuration files, and aborts on detected concurrent modification.
