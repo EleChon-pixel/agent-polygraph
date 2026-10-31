@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 test("blind reviewer packet excludes model decisions and labels are scored afterwards", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apg-review-"));
@@ -19,7 +20,7 @@ test("blind reviewer packet excludes model decisions and labels are scored after
       {type:"assistant",timestamp:iso(3),cwd:"/repo",message:{content:[{type:"text",text:"Done. All tests pass."}]}},
     ];
     fs.writeFileSync(path.join(folder,"s.jsonl"),recs.map(x=>JSON.stringify(x)).join("\n")+"\n");
-    const args = new URL("../scripts/blind-review.mjs",import.meta.url).pathname;
+    const args = fileURLToPath(new URL("../scripts/blind-review.mjs",import.meta.url));
     const output = path.join(dir,"cases.jsonl");
     const prepare = spawnSync(process.execPath,[args,"prepare","--claude-dir",root,"--out",output],{encoding:"utf8"});
     assert.equal(prepare.status,0,prepare.stderr);
