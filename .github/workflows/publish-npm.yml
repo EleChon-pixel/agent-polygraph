@@ -1,4 +1,4 @@
-name: Publish npm release (trusted publisher)
+name: Stage npm release (trusted publisher)
 on:
   workflow_dispatch:
     inputs:
@@ -28,7 +28,9 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - name: Confirm exact version before publishing
+      - name: Install current npm CLI (staged publishing needs npm 11.15+)
+        run: npm install --global npm@latest
+      - name: Confirm exact version before staging
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
@@ -41,7 +43,7 @@ jobs:
         env:
           CHECK_NPM_REGISTRY: '1'
         run: node scripts/release-check.mjs
-      - name: Prevent publishing an existing version
+      - name: Prevent staging an existing published version
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
@@ -49,5 +51,5 @@ jobs:
             echo "::error::This npm version already exists. Versions cannot be overwritten."
             exit 1
           fi
-      - name: Publish with GitHub OIDC and npm provenance
-        run: npm publish --access public
+      - name: Stage with GitHub OIDC (maintainer approval and 2FA required)
+        run: npm stage publish
