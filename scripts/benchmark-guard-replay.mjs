@@ -64,8 +64,8 @@ try {
     if (baselineBlocked && c.expect) baselineTp++; else if (baselineBlocked) baselineFp++; else if (c.expect) baselineFn++; else baselineTn++;
     rows.push({ id: c.id, expectedBlock: c.expect, polygraphBlock: blocked, anyPassBaselineBlock: baselineBlocked });
   }
-  assert.equal(fn, 0, "Polygraph missed a deliberately unbacked claim");
-  assert.equal(fp, 0, "Polygraph incorrectly blocked a labeled backed/nonclaim case");
+  assert.equal(fn, 0, "Polygraph missed: " + rows.filter((r) => r.expectedBlock && !r.polygraphBlock).map((r) => r.id).join(", "));
+  assert.equal(fp, 0, "Polygraph incorrectly blocked: " + rows.filter((r) => !r.expectedBlock && r.polygraphBlock).map((r) => r.id).join(", "));
   console.log(JSON.stringify({
     dataset: "authored-deterministic-stop-fixtures-not-independent",
     cases: cases.length,
