@@ -11,7 +11,7 @@ npx agent-polygraph          # your own sessions
 npx agent-polygraph --demo   # generated sample sessions
 ```
 
-<img src="docs/guard.gif" alt="guard stops Claude Code after it claims tests pass without rerunning them" width="760">
+<img src="docs/guard.gif" alt="guard stops a coding agent that claims tests pass without rerunning them" width="760">
 
 > This is a beta. It has been tested on my own logs and on public Claude Code sessions ([evaluation](docs/evaluation.md)). If a verdict looks wrong, please [open an issue](https://github.com/EleChon-pixel/agent-polygraph/issues/new/choose) with the redacted example from the report. Each one becomes a regression test.
 
