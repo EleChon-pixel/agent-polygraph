@@ -45,6 +45,8 @@ Where the time went
 
 Under the tables it prints the latest examples: what the agent claimed, the last test command and its result, what was edited afterwards, and the session file, so you can check it yourself.
 
+Agent polygraph is more selective than a rerun-at-every-stop hook, but cannot detect unclaimed breakage. A reproducible comparison on public session logs is in [docs/benchmark.md](docs/benchmark.md); results project potential rerun demand, not measured speedups or independently verified correctness.
+
 ## Share your numbers
 
 ```sh
@@ -106,9 +108,9 @@ npx agent-polygraph record --install --shell   # your own terminals
 npx agent-polygraph --ci                       # GitHub Actions (online)
 ```
 
-`record --install` adds a PostToolUse hook to Claude Code and Codex. After a test command, or a command that may write files, it saves a snapshot of the working tree and the test runner's full result. The snapshot is a git tree built with a temporary index and a separate object store, so your repository, its index and its history are never touched. Ignored files are left out. If the logs can't tell whether a script changed your code after the last test run, the two snapshots answer it, and a changed source file is named in the report. Everything stays in `~/.agent-polygraph` (or `$AGENT_POLYGRAPH_HOME`). It applies to sessions started after you install it.
+`record --install` adds a PostToolUse hook to Claude Code and Codex. After a test or a command that may write files, it records the test outcome and an HMAC-fingerprinted source snapshot. The snapshot reads bounded source files without writing copies to Git or storing raw contents. Ignored and non-source files are excluded; symlinks, unreadable files and exceeded size limits make a snapshot inconclusive. Comparing snapshots can resolve scripts that modify dynamically chosen source files. All new records stay in `~/.agent-polygraph` (or `$AGENT_POLYGRAPH_HOME`). Recording starts with new sessions.
 
-`record --install --shell` adds one line to `~/.bashrc` and `~/.zshrc`. From then on, test commands you run in an interactive bash or zsh terminal are logged with their folder, start and end time and exit code. Output is never saved. If you ran the tests yourself in the session's folder after the agent's last edit, that run counts for the agent's claim. `record --uninstall --shell` removes the line.
+`record --install --shell` adds one line to `~/.bashrc` and `~/.zshrc`. Supported test commands you run in interactive Bash/Zsh shells produce a minimal receipt: runner category, working directory, timestamps and exit code. Raw commands and output are never saved. To avoid unsafe shell redirection, the shell hook invokes the installed Node CLI, which validates and writes the receipt with private permissions and no-follow checks. **Use a persistent installation** (`npm i -g agent-polygraph` or a durable checkout) for shell integration; temporary `npx` cache paths may disappear. Shell mode recognizes a conservative subset of direct test commands. `record --uninstall --shell` removes its startup line.
 
 `--ci` goes online. Through your [`gh`](https://cli.github.com) login, it asks the GitHub API for the workflow runs of the repositories your sessions pushed to. The request contains the repository name and a date range, nothing from your sessions. A test workflow on a pushed commit counts as a test run of the code as it was at the push, so later edits still make it stale. Runs are matched to pushes by commit id, which has to appear in the session (in the push output, or from `git commit` or `git log` before it). Branch names and timing alone are not enough. With `--ci`, claims about CI itself ("CI is green", "all checks on the PR pass") are checked too. Workflows with no job or step named like a test, and runs GitHub never started, are ignored.
 
