@@ -17,9 +17,9 @@ function run(bin,args,cwd=root) {
   return result.stdout.trim();
 }
 try {
-  const out=run(process.platform==="win32"?"npm.cmd":"npm",["pack","--json","--ignore-scripts","--pack-destination",tmp]);
+  const out=run(process.platform==="win32"?"npm.cmd":"npm",["pack",".","--json","--ignore-scripts","--pack-destination",tmp]);
   const entries=JSON.parse(out);
-  if(entries.length!==1)throw Error("Expected exactly one npm tarball");
+  if(!Array.isArray(entries) || entries.length!==1)throw Error("Expected one npm tarball from npm pack .; received "+JSON.stringify(entries).slice(0,1500));
   const meta=entries[0];
   const packed=new Set(meta.files.map(x=>x.path));
   const required=["package.json","bin/polygraph.js","src/record.js","src/guard.js","src/safe-config.js","src/shell/record.sh","README.md","LICENSE"];
