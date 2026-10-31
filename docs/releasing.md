@@ -8,20 +8,9 @@ The npm 0.2.0 package is immutable and retains a stale prerelease notice in its 
 
 ## GitHub Release for published 0.2.0
 
-The GitHub Release must have tag `v0.2.0` pointing to the exact **published source commit** `2ce7e41cf3e2f14d385aca3ffcde7a986617cbaa`, not the later documentation commits. As of the last automated GitHub API check, no `v0.2.0` tag or GitHub Release existed; this is separate from npm publishing. Release notes are in [docs/releases/v0.2.0.md](releases/v0.2.0.md).
+The official [v0.2.0 GitHub Release](https://github.com/EleChon-pixel/agent-polygraph/releases/tag/v0.2.0) is published. The `v0.2.0` tag points to the **exact npm-published source commit** `2ce7e41cf3e2f14d385aca3ffcde7a986617cbaa` and is not moved to later documentation commits. The release notes are in [docs/releases/v0.2.0.md](releases/v0.2.0.md).
 
-If that release does not yet exist, an authorized repository maintainer can create it with the GitHub CLI from a clone:
-
-```sh
-gh release create v0.2.0 \
-  --repo EleChon-pixel/agent-polygraph \
-  --target 2ce7e41cf3e2f14d385aca3ffcde7a986617cbaa \
-  --title "agent-polygraph v0.2.0" \
-  --notes-file docs/releases/v0.2.0.md \
-  --latest=false
-```
-
-First check `gh release view v0.2.0 -R EleChon-pixel/agent-polygraph` to avoid duplicate creation. A tag is not an additional branch. To preserve auditability, **never retarget or force-move an existing v0.2.0 tag** if its commit does not match.
+Verify the tag with `gh release view v0.2.0 -R EleChon-pixel/agent-polygraph`. Tags do not create extra branches; `main` remains the only branch.
 
 ## One-time owner setup (requires your npm account)
 
@@ -53,8 +42,8 @@ node scripts/release-check.mjs
 For a **new**, not-yet-published version, update `package.json` and `.claude-plugin/plugin.json` to the same version, commit the changes to `main`, and confirm CI is green. Then:
 
 1. Open [GitHub Actions → Stage npm release (trusted publisher)](https://github.com/EleChon-pixel/agent-polygraph/actions/workflows/publish-npm.yml).
-2. Choose **Run workflow**, branch `main`, and enter the **new version** (not `0.2.0`, which is already published).
-3. The workflow validates the package and uses `npm stage publish` with short-lived GitHub OIDC credentials. This **stages** the tarball but does **not** make `0.2.0` publicly installable yet.
+2. Choose **Run workflow**, branch `main`, and enter a **new version** (both `0.2.0` and `0.2.1` are already published).
+3. The workflow validates the package and uses `npm stage publish` with short-lived GitHub OIDC credentials. This **stages** the new tarball, but the new version remains unavailable to the public until the maintainer approves it.
 4. On npmjs.com, open the **Staged Packages** tab, review the new version and approve it with your account's **2FA**. Wait for npm's malware scan to finish if approval is unavailable.
 5. Confirm `npm view agent-polygraph version` reports the new version, then test `npx --yes agent-polygraph@<new-version> --demo` on a clean machine. Only after successful npm publication should the README advertise that new version as live.
 
