@@ -48,11 +48,17 @@ try {
     throw Error("Published CLI demo failed");
   if (!fs.existsSync(path.join(temp, "node_modules", pkg.name, "src", "safe-config.js")))
     throw Error("Published package is missing the security-hardened settings module");
+  const publishedReadme = fs.readFileSync(path.join(temp, "node_modules", pkg.name, "README.md"), "utf8");
+  const sourceReadme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+  if (publishedReadme !== sourceReadme)
+    throw Error("Published README differs from the corrected repository README");
+  if (publishedReadme.includes("0.2.0 release candidate") || publishedReadme.includes("still serves **0.1.0**"))
+    throw Error("Published README still contains obsolete prerelease status");
   console.log(JSON.stringify({
     package: pkg.name, publicLatestVersion: latest.version,
     sourceRepositoryVerified: true, sha512IntegrityPresent: true,
     installedFromPublicNpm: true, cliVersionVerified: true, demoPassed: true,
-    safeConfigIncluded: true
+    safeConfigIncluded: true, correctedReadmeVerified: true
   }, null, 2));
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
