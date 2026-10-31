@@ -11,9 +11,9 @@ import crypto from "node:crypto";
 import * as claude from "../src/sources/claude.js";
 import { analyzeSession } from "../src/analyze.js";
 
-const DATASET = process.env.HOLDOUT_DATASET || "trace-commons/agent-traces";
-const PREFIX = process.env.HOLDOUT_PREFIX || "sessions/claude_code/";
-const EXCLUDE_REV = process.env.HOLDOUT_EXCLUDE_REV || "112ebd4d03ce852b00e935d523107c3d0c9a65bf";
+const DATASET = process.env.HOLDOUT_DATASET || "crispwisp/wisp-claude-code-sessions";
+const PREFIX = process.env.HOLDOUT_PREFIX || "transcripts/";
+const EXCLUDE_REV = process.env.HOLDOUT_EXCLUDE_REV ?? "";
 const pin = process.env.HOLDOUT_REV || "main";
 const MAX_FILES = 100;
 const MAX_BYTES = 2_000_000;
@@ -73,7 +73,7 @@ function independentlyLabel(recs) {
   }
   return labels;
 }
-const results = { source: DATASET, revision: null, excludedEarlierRevision: EXCLUDE_REV || null, totalListed: 0, newNames: 0, filesRead: 0, bytesRead: 0, rawAssistantMessages: 0, rawToolUses: 0, rawExplicitTestCommands: 0, rawCodeEdits: 0,
+const results = { source: DATASET, revision: null, excludedEarlierRevision: EXCLUDE_REV || null, totalListed: 0, newNames: 0, filesRead: 0, bytesRead: 0, rawAssistantMessages: 0, rawToolUses: 0, rawExplicitTestCommands: 0, rawCodeEdits: 0, rawClaimCandidates: 0,
   filesParsed: 0, oracleEligible: 0, oracleAbstained: 0, compared: 0, agreement: 0,
   matrix: {}, mismatchHashes: [], abstentionReasons: {}, readErrors: 0,
   limits: { maxFiles:MAX_FILES, maxFileBytes:MAX_BYTES, maxTotalBytes:MAX_TOTAL },
@@ -126,6 +126,7 @@ try {
         }
       }
       const references = independentlyLabel(recs);
+      results.rawClaimCandidates += references.length;
       if (!references.length) continue;
       const local = path.join(dir,"trace-"+i+".jsonl");
       fs.writeFileSync(local,raw,{mode:0o600});
