@@ -1,0 +1,58 @@
+name: Wrong verdict
+description: A claim was flagged (stale, failed, no test run) but it was fine, or it was "backed" when it shouldn't have been.
+title: "Wrong verdict: "
+labels: ["wrong verdict"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks, every report becomes a regression test.
+        **Please don't paste whole transcripts.** They can contain code, file paths, prompts and secrets. A redacted sentence and the lines below are enough; change names and paths freely.
+  - type: dropdown
+    id: got
+    attributes:
+      label: What agent-polygraph said
+      options:
+        - Code edited after the last run
+        - Last run had failed
+        - No test run in the session
+        - Backed by a fresh passing run
+        - Couldn't tell
+        - Failing test "fixed" by editing only tests
+        - Edits that weakened an existing test
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: The example from the report (redacted)
+      description: The block from "Most recent examples", or the guard's message. The claim, `last test:` and `then edited:` lines are the useful part.
+      render: text
+      placeholder: |
+        ✗ Code edited after the last run · Codex · Oct 31 · myapp
+          "All 42 tests pass."
+          last test: npm test → passed, 4m earlier
+          then edited: src/api.js
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: For example, "the edit to src/api.js was a comment", "tests ran in a hook", "the run after the edit is in the log but wasn't counted".
+    validations:
+      required: true
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      description: Shown at the bottom of the report as "Log versions".
+      placeholder: Claude Code 2.1.x / Codex CLI 0.x
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: agent-polygraph version, OS, test runner
+      placeholder: 0.1.0, macOS, pytest

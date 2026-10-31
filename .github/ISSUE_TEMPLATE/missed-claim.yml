@@ -1,0 +1,35 @@
+name: Missed or false claim
+description: The agent said tests pass and it wasn't counted, or a sentence was counted as a claim when it wasn't one.
+title: "Claim detection: "
+labels: ["claim detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Claim detection is pattern matching on sentences, so one sentence is usually all that's needed. Redact anything private.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong
+      options:
+        - A real "tests pass" claim was not detected
+        - A sentence was treated as a claim but isn't one
+    validations:
+      required: true
+  - type: textarea
+    id: sentence
+    attributes:
+      label: The sentence (redacted)
+      render: text
+      placeholder: "Ran the full suite: 118 passed, 0 failed."
+    validations:
+      required: true
+  - type: input
+    id: language
+    attributes:
+      label: Language, if not English
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      placeholder: Claude Code 2.1.x / Codex CLI 0.x

@@ -1,0 +1,4 @@
+node_modules/
+polygraph.html
+*.log
+eval-data/

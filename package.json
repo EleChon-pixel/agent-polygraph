@@ -1,0 +1,40 @@
+{
+  "name": "agent-polygraph",
+  "version": "0.1.0",
+  "description": "Check your coding agents' \"tests pass\" claims against what actually ran. Reads Claude Code and Codex session logs locally.",
+  "type": "module",
+  "bin": {
+    "agent-polygraph": "bin/polygraph.js",
+    "polygraph": "bin/polygraph.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test 'test/*.test.js'",
+    "start": "node bin/polygraph.js"
+  },
+  "engines": {
+    "node": ">=18.3"
+  },
+  "keywords": [
+    "claude-code",
+    "codex",
+    "coding-agents",
+    "ai-agents",
+    "testing",
+    "audit",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EleChon-pixel/agent-polygraph.git"
+  },
+  "homepage": "https://github.com/EleChon-pixel/agent-polygraph#readme",
+  "bugs": "https://github.com/EleChon-pixel/agent-polygraph/issues",
+  "author": "Eleftherios Chondros"
+}

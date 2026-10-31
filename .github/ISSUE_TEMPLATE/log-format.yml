@@ -1,0 +1,39 @@
+name: Logs not read
+description: Sessions are missing, the report says files are in an unknown format, or the numbers are all zero.
+title: "Logs not read: "
+labels: ["log format"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agents change their log formats between versions. Please **don't attach log files**; the details below and the field names are enough to start.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent and version
+      placeholder: Claude Code 2.1.x / Codex CLI 0.x
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and agent-polygraph version
+      placeholder: Windows 11, 0.1.0
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: What the report printed
+      description: The header line, any warning about unreadable files or newer versions, and the "Log versions" line.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Field names of one record (optional)
+      description: |
+        Keys only, no values. For example:
+        `head -1 <file>.jsonl | node -e 'const o=JSON.parse(require("fs").readFileSync(0));const k=(x)=>x&&typeof x==="object"?Object.fromEntries(Object.entries(x).map(([a,b])=>[a,k(b)])):typeof x;console.log(JSON.stringify(k(o),null,1))'`
+      render: json

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How each number is measured
+    url: https://github.com/EleChon-pixel/agent-polygraph#how-it-decides
+    about: Read this first if a verdict surprises you; the rules are deliberately cautious.
