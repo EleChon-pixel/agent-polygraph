@@ -389,3 +389,21 @@ test("--ci: runs GitHub never started (startup_failure) are not evidence either 
   const { s } = await ciSession(dir, [({ say }) => say(400, "All tests pass.")], [wf(1, "1a2b3c4", 10, 11, "startup_failure")]);
   assert.equal(verdict(s.claims), "no-run");
 });
+
+test("claims are quoted as written (inline code kept), and guard quotes the message's conclusion", async () => {
+  const { findTestClaim, findTestClaims } = await import("../src/classify.js");
+  const msg = "Step 1: `npm test` ran and passed (1 test, 0 failures).\n\nStep 2: I changed `calc.js`.\n\nAll tests pass.";
+  assert.equal(findTestClaim(msg), "Step 1: `npm test` ran and passed (1 test, 0 failures).");
+  assert.deepEqual(findTestClaims(msg).at(-1), "All tests pass.");
+  assert.equal(findTestClaim('I won\'t say "all tests pass" yet.'), null);
+});
+
+test("a pass the agent itself says was against the original code is not a claim", async () => {
+  const { findTestClaim } = await import("../src/classify.js");
+  assert.equal(findTestClaim('- **Step 1:** `npm test` passed (1 test, "adds two numbers"), but that run was against the original `calc.js`.'), null);
+});
+
+test('"the original 1720 plus 12 new tests" is still a claim', async () => {
+  const { findTestClaim } = await import("../src/classify.js");
+  assert.ok(findTestClaim("The full suite passes: 1732 passed, which is the original 1720 plus 12 new tests."));
+});

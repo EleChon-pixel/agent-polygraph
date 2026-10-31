@@ -302,17 +302,32 @@ const OTHER_LANGS = [
 const OTHER_HEDGES = /(?<!\p{L})(?:δεν|θα|αν|όταν|no|si|cuando|nicht|kein\w*|wenn|ne|n'|quand|não|se|quando|non)(?!\p{L})|\?/iu;
 
 const HEDGES =
-  /\b(?:claim(?:s|ed|ing)?|agents?|issues?\s+\[?#|I['’]ll|I\s+will|I['’]m\s+going|going\s+to|confirm|plan(?:s|ning)?\s+(?:to|is)|next|then|not|no\s+longer|fail(?:s|ed|ing|ures?)?|should|would|could|will|might|may|to\s+pass|make\s+sure|ensure|until|unless|if|whether|once|after\s+(?:you|we)|verify|check\s+(?:that|whether)|expect(?:ed)?|need(?:s|ed)?\s+to|want|so\s+that|in\s+order|let['’]s|let\s+me|running|run\s+(?:the|it|them)|before|previously|earlier|originally|pre-?existing|baseline|unrelated|except|flaky|mostly|partly|partially|in\s+isolation|despite|continuing|still\s+running|recorded|pre-?fix|so\s+far|mixed|otherwise|blocked|(?:on|in)\s+CI|GitHub\s+Actions|by\s+(?:value|reference)|on\s+(?:the\s+)?(?:device|hardware|phone|emulator|simulator|Pixel|iPhone)|over\s+USB|manual(?:ly)?|the\s+other\s+[\d,]+)\b|\b(?!all\b)\w+\s+[\d,]+\s+of\s+[\d,]+\b|n['’]t\b|\?/i;
+  /\b(?:claim(?:s|ed|ing)?|agents?|issues?\s+\[?#|I['’]ll|I\s+will|I['’]m\s+going|going\s+to|confirm|plan(?:s|ning)?\s+(?:to|is)|next|then|not|no\s+longer|fail(?:s|ed|ing|ures?)?|should|would|could|will|might|may|to\s+pass|make\s+sure|ensure|until|unless|if|whether|once|after\s+(?:you|we)|verify|check\s+(?:that|whether)|expect(?:ed)?|need(?:s|ed)?\s+to|want|so\s+that|in\s+order|let['’]s|let\s+me|running|run\s+(?:the|it|them)|before|previously|earlier|originally|(?:against|on|with|for)\s+the\s+original|pre-?existing|baseline|unrelated|except|flaky|mostly|partly|partially|in\s+isolation|despite|continuing|still\s+running|recorded|pre-?fix|so\s+far|mixed|otherwise|blocked|(?:on|in)\s+CI|GitHub\s+Actions|by\s+(?:value|reference)|on\s+(?:the\s+)?(?:device|hardware|phone|emulator|simulator|Pixel|iPhone)|over\s+USB|manual(?:ly)?|the\s+other\s+[\d,]+)\b|\b(?!all\b)\w+\s+[\d,]+\s+of\s+[\d,]+\b|n['’]t\b|\?/i;
 
 /** Return the sentence in which the agent claims tests pass, or null. */
 export function findTestClaim(text) {
-  if (!text || text.length > 20000) return null;
-  const prose = text
+  return findTestClaims(text, 1)[0] ?? null;
+}
+
+/** Every sentence in which the agent claims tests pass, in order (at most `limit`). */
+export function findTestClaims(text, limit = Infinity) {
+  const out = [];
+  if (!text || text.length > 20000) return out;
+  // Inline code and short quotes are masked for the checks below and restored in the
+  // sentence that is returned, so a claim is quoted as the agent wrote it.
+  const kept = [];
+  const mask = (orig, shown) => {
+    kept.push(orig);
+    return `\u0000${kept.length - 1}:${shown}\u0000`;
+  };
+  const restore = (s) => s.replace(/\u0000(\d+):[^\u0000]*\u0000/g, (_, i) => kept[Number(i)]);
+  const masked = text
     .replace(/```[\s\S]*?```/g, " ") // pasted runner output is evidence, not a claim
-    .replace(/`([^`\n]*)`/g, (_, code) => (/\d[\d,]*\s+passed\b/.test(code) ? code : "CODE"))
-    .replace(/"[^"\n]{0,80}"|“[^”\n]{0,80}”/g, "QUOTE"); // talking about the phrase "tests pass"
-  for (const raw of prose.split(/(?<=[.!;\n])\s+|\n+/)) {
-    const sentence = raw.trim();
+    .replace(/`([^`\n]*)`/g, (m, code) => (/\d[\d,]*\s+passed\b/.test(code) ? code : mask(m, "CODE")))
+    .replace(/"[^"\n]{0,80}"|“[^”\n]{0,80}”/g, (m) => mask(m, "QUOTE")); // talking about the phrase "tests pass"
+  for (const raw of masked.split(/(?<=[.!;\n])\s+|\n+/)) {
+    const shown = raw.trim();
+    const sentence = shown.replace(/\u0000\d+:([^\u0000]*)\u0000/g, "$1");
     if (!sentence || sentence.length > 400) continue;
     if ((sentence.match(/\|/g) || []).length >= 2) continue; // table rows
     // "0 failed" and "3 skipped" don't contradict a pass
@@ -322,10 +337,13 @@ export function findTestClaim(text) {
     const english =
       CLAIM_PATTERNS.some((rx) => rx.test(sentence)) ||
       (NEAR.some((rx) => rx.test(sentence)) && !/^\W*pass\b/i.test(sentence));
-    if (english && !HEDGES.test(checked)) return sentence;
-    if (!english && OTHER_LANGS.some((rx) => rx.test(sentence)) && !OTHER_HEDGES.test(checked)) return sentence;
+    const claim = (english && !HEDGES.test(checked)) || (!english && OTHER_LANGS.some((rx) => rx.test(sentence)) && !OTHER_HEDGES.test(checked));
+    if (claim) {
+      out.push(restore(shown));
+      if (out.length >= limit) break;
+    }
   }
-  return null;
+  return out;
 }
 
 /** A claim about the whole suite: "the full suite passes", "entire test suite green". */
