@@ -211,7 +211,7 @@ export function analyzeSession(session) {
   /** Files that differ between two `record` snapshots of one checkout, or null if unknown. */
   const snapshotDiff = (a, b) => {
     if (!a || !b || !session.treeDiff || a.root !== b.root) return null;
-    if (a.tree === b.tree) return [];
+    if (a.tree && b.tree && a.tree === b.tree) return [];
     try {
       const out = session.treeDiff(a, b);
       return Array.isArray(out) ? out : null;
