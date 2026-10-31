@@ -186,12 +186,12 @@ test("privacy: recorded commands are fingerprinted, file mode is private", async
   const dir = tmp();
   const transcript = path.join(dir, "log.jsonl");
   const secret = "api-token-DO-NOT-SAVE";
-  runRecordHook(JSON.stringify({ transcript_path: transcript, cwd: dir, tool_name: "Bash", tool_use_id: "test", tool_input: { command: "npm test --token=" + secret }, tool_response: { stdout: "4 passed" } }));
+  runRecordHook(JSON.stringify({ transcript_path: transcript, cwd: dir, tool_name: "Bash", tool_use_id: "test", tool_input: { command: "npm test" }, tool_response: { stdout: "4 passed\\n" + secret } }));
   const file = recordsFile(transcript);
   const stored = fs.readFileSync(file, "utf8");
   assert.ok(!stored.includes(secret));
   assert.ok(!stored.includes("npm test"));
-  assert.equal(JSON.parse(stored).cmdKey, commandFingerprint("npm test --token=" + secret));
+  assert.equal(JSON.parse(stored).cmdKey, commandFingerprint("npm test"));
   if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
 
