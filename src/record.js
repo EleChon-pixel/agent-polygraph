@@ -34,11 +34,18 @@ function verifyPrivateFile(fd) {
 }
 function secureDirectory(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const st = fs.lstatSync(dir);
-  if (!st.isDirectory() || st.isSymbolicLink()) throw new Error("Unsafe record directory");
-  if (process.platform !== "win32") {
-    if (st.uid !== process.getuid()) throw new Error("Record directory belongs to another user");
-    fs.chmodSync(dir, 0o700);
+  // Act on the opened directory, not on a pathname that may be replaced
+  // with a symlink between an lstat() check and chmod().
+  const fd = fs.openSync(dir, fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0) | NOFOLLOW);
+  try {
+    const st = fs.fstatSync(fd);
+    if (!st.isDirectory()) throw new Error("Unsafe record directory");
+    if (process.platform !== "win32") {
+      if (st.uid !== process.getuid()) throw new Error("Record directory belongs to another user");
+      fs.fchmodSync(fd, 0o700);
+    }
+  } finally {
+    fs.closeSync(fd);
   }
 }
 function secureWrite(file, data, append = false) {
