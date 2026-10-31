@@ -75,7 +75,7 @@ function independentlyLabel(recs) {
 }
 const results = { source: DATASET, revision: null, excludedEarlierRevision: EXCLUDE_REV || null, totalListed: 0, newNames: 0, filesRead: 0, bytesRead: 0, rawAssistantMessages: 0, rawToolUses: 0, rawExplicitTestCommands: 0, rawCodeEdits: 0, rawClaimCandidates: 0,
   filesParsed: 0, oracleEligible: 0, oracleAbstained: 0, compared: 0, agreement: 0,
-  matrix: {}, mismatchHashes: [], abstentionReasons: {}, readErrors: 0,
+  matrix: {}, mismatchHashes: [], abstentionReasons: {}, readErrors: 0, httpStatuses: {}, exceptionNames: {},
   limits: { maxFiles:MAX_FILES, maxFileBytes:MAX_BYTES, maxTotalBytes:MAX_TOTAL },
   warning: "Machine-derived high-confidence labels on unseen public traces; not blind human labels or a statistical accuracy guarantee." };
 try {
@@ -111,7 +111,7 @@ try {
     const remote = "https://huggingface.co/datasets/" + DATASET + "/resolve/" + results.revision + "/" + name.split("/").map(encodeURIComponent).join("/");
     try {
       const response = await fetch(remote,{signal:AbortSignal.timeout(12000)});
-      if (!response.ok) { results.readErrors++; return; }
+      if (!response.ok) { results.readErrors++; results.httpStatuses[response.status]=(results.httpStatuses[response.status]||0)+1; return; }
       const size = Number(response.headers.get("content-length") || 0);
       if (size > MAX_BYTES) return;
       const buf = Buffer.from(await response.arrayBuffer());
@@ -154,14 +154,16 @@ try {
         if (predicted === ref.label) results.agreement++;
         else results.mismatchHashes.push(crypto.createHash("sha256").update(name+":"+ref.ts).digest("hex").slice(0,12));
       }
-    } catch {
+    } catch (e) {
       results.readErrors++;
+      const category = e?.name === "TimeoutError" ? "TimeoutError" : e?.name === "SyntaxError" ? "SyntaxError" : "OtherError";
+      results.exceptionNames[category]=(results.exceptionNames[category]||0)+1;
     }
     }));
   }
   results.agreementRate = results.compared ? Number((results.agreement/results.compared).toFixed(3)) : null;
   console.log(JSON.stringify(results,null,2));
-  if (!results.filesRead) console.error("No previously unseen, accessible transcripts found; accuracy is unmeasured.");
+  if (!results.filesRead) { console.error("No previously unseen, accessible transcripts found; accuracy is unmeasured."); process.exitCode=2; }
 } finally {
   fs.rmSync(dir,{recursive:true,force:true});
 }
