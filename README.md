@@ -207,7 +207,7 @@ npm run benchmark:replay
 npm run benchmark:live
 ```
 
-Before distributing a new version, verify `npm view agent-polygraph version`, the published tarball (`npm pack --dry-run`), and that a clean install really contains the latest privacy and guard fixes. The repository currently declares version `0.1.0`; a green GitHub Actions badge does **not** prove that `npx agent-polygraph` executes the latest `main` code.
+Before distributing a new version, verify `npm view agent-polygraph version`, the published tarball (`npm pack --dry-run`), and that a clean install really contains the latest privacy and guard fixes. The repository declares version `0.2.0` as the **next release candidate**; until it is published, `npx agent-polygraph` still installs the older public registry version. A green GitHub Actions badge does **not** prove npm has been updated.
 
 ## Privacy
 
