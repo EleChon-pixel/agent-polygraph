@@ -45,7 +45,7 @@ Where the time went
 
 Under the tables it prints the latest examples: what the agent claimed, the last test command and its result, what was edited afterwards, and the session file, so you can check it yourself.
 
-Agent polygraph is more selective than a rerun-at-every-stop hook, but cannot detect unclaimed breakage. A reproducible comparison on public session logs is in [docs/benchmark.md](docs/benchmark.md); results project potential rerun demand, not measured speedups or independently verified correctness.
+Agent polygraph is more selective than a rerun-at-every-stop hook, but cannot detect unclaimed breakage. A reproducible session-log cost projection is in [docs/benchmark.md](docs/benchmark.md). The [executed test-policy comparison](docs/live-evaluation.md) reports real added test processes, timings, and missed failing suites. This is evidence of a useful efficiency-versus-coverage trade-off, **not** independently verified correctness or a claim that a selective guard is a substitute for running tests.
 
 ## Share your numbers
 
