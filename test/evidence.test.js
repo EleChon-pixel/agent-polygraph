@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import * as claude from "../src/sources/claude.js";
 import { analyzeSession } from "../src/analyze.js";
 import { findCiClaim, findTestClaim, outcomeFromOutput, passedCount } from "../src/classify.js";
@@ -238,7 +239,7 @@ test("record --shell: a test you ran in your own terminal is evidence for the se
 });
 
 test("record --shell: the shell script is valid bash and install/uninstall edit only its own line", () => {
-  execFileSync("bash", ["-n", new URL("../src/shell/record.sh", import.meta.url).pathname]);
+  if (process.platform !== "win32") execFileSync("bash", ["-n", fileURLToPath(new URL("../src/shell/record.sh", import.meta.url))]);
   const home = tmp();
   const prev = process.env.HOME;
   process.env.HOME = home;
