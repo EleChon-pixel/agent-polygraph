@@ -259,6 +259,24 @@ export function loadTerminal() {
   return terminalCache;
 }
 
+// Shell hook receipts use the same no-follow, owner-only writer as agent hooks.
+// Accept an allowlisted category, never an arbitrary command or untrusted output.
+const SHELL_RUNNERS = new Set(["pytest", "npm test", "node --test", "go test", "cargo test", "mvn test", "gradle test", "dotnet test", "vitest run"]);
+export function runShellRecord(input) {
+  try {
+    const r = JSON.parse(input);
+    if (!SHELL_RUNNERS.has(r.runner) || !isTestCommand(r.runner)) return false;
+    if (!Number.isFinite(r.start) || !Number.isFinite(r.end) || r.end < r.start ||
+        !Number.isInteger(r.exit) || typeof r.cwd !== "string" ||
+        !path.isAbsolute(r.cwd) || r.cwd.length > 4096) return false;
+    const rec = { v: 2, kind: "terminal", start: r.start, end: r.end, exit: r.exit, cwd: r.cwd, runner: r.runner };
+    secureWrite(terminalFile(), JSON.stringify(rec) + "\n", true);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function addTerminalRuns(session, runs) {
   if (!runs.length || !session.cwd || session.start == null || session.end == null) return;
   const cwd = slash(session.cwd);
@@ -297,7 +315,10 @@ function readLines(file) {
 const MARK = "# agent-polygraph record";
 export const shellScript = () => path.join(home(), "shell.sh");
 
-const SHELL_SNIPPET = () => fs.readFileSync(new URL("./shell/record.sh", import.meta.url), "utf8");
+const shQuote = (s) => "'" + String(s).replaceAll("'", "'\\''") + "'";
+const SHELL_SNIPPET = () => fs.readFileSync(new URL("./shell/record.sh", import.meta.url), "utf8")
+  .replace("__APG_NODE__", shQuote(process.execPath))
+  .replace("__APG_ENTRY__", shQuote(fs.realpathSync(new URL("../bin/polygraph.js", import.meta.url).pathname)));
 
 const RC_FILES = () => [".bashrc", ".zshrc"].map((f) => path.join(os.homedir(), f));
 
