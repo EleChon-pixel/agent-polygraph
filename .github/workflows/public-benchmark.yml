@@ -22,6 +22,8 @@ jobs:
         run: node scripts/eval-public.mjs ./eval-data --examples 0
       - name: Compare selective claim guard vs blanket rerun policy
         run: node scripts/benchmark.mjs --claude-dir ./eval-data/claude --codex-dir ./eval-data/codex
+      - name: Measure snapshot overhead on generated source files
+        run: node scripts/bench-snapshot.mjs
       - name: Discard downloaded transcripts
         if: always()
         run: rm -rf ./eval-data
