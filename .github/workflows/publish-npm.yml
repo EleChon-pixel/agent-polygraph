@@ -28,8 +28,8 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - name: Install current npm CLI (staged publishing needs npm 11.15+)
-        run: npm install --global npm@latest
+      - name: Install pinned npm CLI with staged publishing support
+        run: npm install --global npm@11.21.0
       - name: Confirm exact version before staging
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
