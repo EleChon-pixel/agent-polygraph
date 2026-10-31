@@ -191,6 +191,13 @@ These are the gaps that remain. `record` and `--ci` close most of them once you 
 
 ## Privacy
 
+New recordings intentionally minimize local data. The agent hook stores a keyed command fingerprint, the runner's result and optional fingerprints of source files. It does **not** save raw command text, test output or copies of repository files in its snapshot store. The shell integration saves only a recognized test-runner category, time, folder and exit code. Local record files, key and snapshot metadata are owner-only on Unix. The secret fingerprint key is stored in `$AGENT_POLYGRAPH_HOME/record-key` (default `~/.agent-polygraph/record-key`).
+
+**Existing installations:** records made before this update may still include full commands, and older versions may have created a local Git object store with duplicate source contents. Upgrading does **not** remove those files. After reviewing whether you still need the historical evidence, uninstall recording and manually remove the old `~/.agent-polygraph/records` and `~/.agent-polygraph/objects` directories. Removing historical records means those sessions will lose their supplemental evidence; the original Claude Code/Codex transcripts remain untouched. Do not delete `record-key` while retaining version 2 records that rely on matching fingerprints.
+
+The local session transcripts remain owned by Claude Code/Codex and can themselves contain confidential data. The terminal report and `--json` may quote transcript text and paths; do not share them without review. The `--html` report intentionally excludes excerpts, prompts, commands and paths. The recorder only supports bounded source-file snapshots in Git checkouts and skips symbolic links; when evidence cannot be read it must stay inconclusive rather than certifying a pass. New source-file fingerprints include relative filenames and are not an anonymization guarantee.
+
+
 It reads files and works offline. The exceptions are all opt-in:
 
 - `guard` and `record` edit the hook config files they print when you install or uninstall them, and `record --shell` adds or removes one marked line in `~/.bashrc` and `~/.zshrc`.
