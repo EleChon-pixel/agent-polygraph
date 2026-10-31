@@ -199,7 +199,8 @@ export function snapshot(cwd) {
     if (++count > MAX_SNAPSHOT_FILES) { complete = false; break; }
     try {
       const data = sourceFingerprint(root, name, key);
-      if (!data || total + data.bytes > MAX_SNAPSHOT_BYTES) { complete = false; break; }
+      if (!data) { complete = false; continue; }
+      if (total + data.bytes > MAX_SNAPSHOT_BYTES) { complete = false; break; }
       total += data.bytes;
       files[name] = data.digest;
     } catch {
