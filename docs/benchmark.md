@@ -20,6 +20,20 @@ The demo is generated and must **not** be used as independent validation. The ex
 
 The benchmark reports **possible extra rerun requests** rather than measured additional test executions. A single user turn can have multiple stops, and a transcript may end without a stop; neither can be reconstructed exactly from these logs. Answered user turns approximate Stop-hook opportunities (intermediate assistant messages are not Stop events), and retrospective flagged claims are an upper bound on actual live Stop blocks. The resulting reduction is a *workload projection*, not a measured speedup, not independent proof of verdict accuracy, and not a universal win.
 
+## Reproduced results (2026-10-31)
+
+The [public-session benchmark workflow](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41247587810) downloaded the pinned datasets and completed successfully on an Ubuntu runner with Node 22. The retrospective parser found **29 sessions**, **323 user turns with an assistant response**, and **27 passing-test claims** (24 backed, 3 marked stale, zero unknown).
+
+| Policy model | Hypothetical verification demand |
+|---|---:|
+| Rerun a test suite once per answered user turn | 323 additional executions |
+| Claim-only guard | Up to 3 additional *verification requests* |
+| Potential requests avoided | At least 320 / 323 (99.1%), **projected**, not observed |
+
+This **supports a narrower, conditional claim**: in these session traces, claim-only checking *can avoid asking for tests on most turns*. It does **not** prove lower wall-clock latency (actual suite durations and agent responses were not compared), higher accuracy, or better defect coverage. A full rerun policy can catch failures that never appear in claims. A message in a transcript is not itself a Stop hook call; answered user turns are only a comparison model. The three stale verdicts were not all independently confirmed; see [evaluation.md](evaluation.md).
+
+The same workflow ran a Linux source-snapshot microbenchmark on generated 1,048-byte source files (median of three reads): **9.43 ms for 100 files** and **37.06 ms for 1,000 files**. These measure only a snapshot invocation on that runner, not total Stop-hook overhead. Performance on large or different filesystems may vary significantly.
+
 ## What would establish a stronger claim?
 
 A comparative, externally labeled study needs the **same frozen sessions or tasks** for all policies, labels independently reviewed by someone who did not write the verifier, and separate reporting of:
