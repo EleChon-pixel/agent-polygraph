@@ -5,8 +5,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(new URL("../", import.meta.url).pathname);
+const root = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-polygraph-release-check-"));
 function run(bin,args,cwd=root) {
