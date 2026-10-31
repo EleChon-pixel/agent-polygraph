@@ -47,6 +47,21 @@ The earlier release attempt failed because `actions/setup-node@v6` was configure
 
 If authentication still fails, check the npm Trusted Publisher settings match *exactly*: owner `EleChon-pixel`, repository `agent-polygraph`, workflow filename `publish-npm.yml`, and **no environment name**. Keep direct `npm publish` permission unchecked; staged publishing is sufficient. npm verifies these attributes at publish time, not on saving the form. Do not add a personal npm token as a workaround; that would defeat the trusted-publishing design.
 
+### Verified failure: npm trusted-publisher registration mismatch (31 October 2026)
+
+The third staging attempt, [run 41252788734](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41252788734), passed all tests, npm package validation and OIDC environment checks, but `npm stage publish` returned `ENEEDAUTH`. A separate **no-publish OIDC exchange diagnostic** ([run 41252910997](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41252910997)) directly requested npm's documented `POST /-/npm/v1/oidc/token/exchange/package/agent-polygraph` endpoint and received **HTTP 404**.
+
+GitHub issued a token with these exact non-secret identity claims:
+
+- repository: `EleChon-pixel/agent-polygraph`
+- workflow_ref: `EleChon-pixel/agent-polygraph/.github/workflows/publish-npm.yml@refs/heads/main`
+- audience: `npm:registry.npmjs.org`
+- event: `push` (a diagnostic-only run)
+
+The HTTP 404 means the npm registry did not issue a trusted-publisher token for that identity; the package is already public, so an absent package is not the likely explanation. **The npm Trusted Publisher configuration must be inspected in the owner's npm account.** The original form may have been filled with a full GitHub URL in the Repository field; npm needs only `agent-polygraph`. If a saved entry is wrong, correct or remove/recreate that entry. Ensure that the entry is associated with the existing `agent-polygraph` npm package and the right npm owner account, not another package. Do **not** disable 2FA, add an npm token, or enable direct publishing.
+
+The staging workflow now runs `scripts/verify-npm-oidc.mjs` **before** test execution. It safely prints only non-secret OIDC identity claims and the exchange HTTP status; it never prints a token, stages a package or publishes during the check. Once npm accepts the trust identity (HTTP 201), the same manual workflow can continue to stage `0.2.0`. For authoritative guidance see [npm trusted publishers](https://docs.npmjs.com/trusted-publishers/).
+
 ## Recovery for installed hooks
 
 Installing or uninstalling the Claude Code/Codex hooks and modifying `~/.bashrc` or `~/.zshrc` now makes an owner-only backup of the original settings file before applying an atomic rename. The command prints each backup's exact location. Defaults are under `~/.agent-polygraph/backups` (or `$AGENT_POLYGRAPH_HOME/backups`). Backups may contain confidential original settings; don't commit or upload them. To restore, copy the desired backup over the exact original settings file after inspecting it. The installer preserves existing file permissions when replacing files, uses 0600 for newly created files on Unix, refuses symlinks and hard-linked configuration files, and aborts on detected concurrent modification.
