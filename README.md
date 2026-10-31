@@ -4,14 +4,14 @@
 
 Your coding agent said "all tests pass". Did a test pass after its last edit?
 
-agent-polygraph reads the Claude Code and Codex session logs already on your machine and checks every "tests pass" claim against what ran. No setup, no API key, nothing uploaded.
+agent-polygraph is an audit of your past sessions. It reads the Claude Code and Codex session logs already on your machine and checks every "tests pass" claim against what ran: was there a passing test run after the agent's last code edit? It tells you how often your agents claimed something they hadn't verified, and shows the evidence for each case. No setup, no API key, nothing uploaded.
+
+It reads logs; it never runs your tests. An unbacked claim isn't necessarily false, only unverified: nobody reran the tests at that point, so whether they would have passed is unknown.
 
 ```sh
 npx agent-polygraph          # your own sessions
 npx agent-polygraph --demo   # generated sample sessions
 ```
-
-<img src="docs/guard.gif" alt="guard stops a coding agent that claims tests pass without rerunning them" width="760">
 
 > This is a beta. It has been tested on my own logs and on public Claude Code sessions ([evaluation](docs/evaluation.md)). If a verdict looks wrong, please [open an issue](https://github.com/EleChon-pixel/agent-polygraph/issues/new/choose) with the redacted example from the report. Each one becomes a regression test.
 
@@ -55,7 +55,7 @@ This writes `polygraph.html`, a self-contained card with numbers only. Prompts, 
 
 <img src="docs/card.png" alt="agent-polygraph report card from my own sessions" width="600">
 
-## Stop unbacked claims as they happen
+## Catch unbacked claims as they happen (optional)
 
 ```sh
 npx agent-polygraph guard --install            # this project (.claude/settings.json, .codex/hooks.json)
@@ -63,13 +63,26 @@ npx agent-polygraph guard --install --global   # every project (~/.claude, ~/.co
 npx agent-polygraph guard --uninstall
 ```
 
+<img src="docs/guard.gif" alt="staged demo: guard stops a coding agent that claims tests pass after editing code, and the rerun fails" width="760">
+
 `guard` is a Stop hook that runs the same checks on the live session. When the agent's final message says tests pass and the session doesn't back it up, the agent is sent back once:
 
 > agent-polygraph: your final message says "All tests pass.", but you edited calc.js after the last test run. Run the relevant tests now and report the actual result. If they can't be run, say so instead of claiming they pass.
 
 It blocks at most once per stop, looks only at the final message (so a claim the agent already corrected doesn't count), stays quiet when it can't tell, and never fails the turn because of its own errors. Install it globally (`npm i -g agent-polygraph`) so the hook doesn't start `npx` on every stop.
 
-I tested it with both agents by having them edit code after a test run and then claim the tests pass. Both were stopped, reran `npm test` and reported the failure. Codex needs one extra step: it only runs hooks you have approved, and only reads a project's `.codex/` folder if you trust it. After installing, open `codex` in the project once, trust the folder and approve the hook.
+I tested it with both agents in a staged setup: they were told to edit code after a test run and then claim the tests pass (the GIF above is one of these runs). Both were stopped, reran `npm test` and reported the failure. Codex needs one extra step: it only runs hooks you have approved, and only reads a project's `.codex/` folder if you trust it. After installing, open `codex` in the project once, trust the folder and approve the hook.
+
+### Do you need it?
+
+Maybe not. Two simpler setups also work, and they are more thorough:
+
+- A Stop hook that runs your test suite after every turn and gives the agent the result. This also catches breakage when the agent doesn't claim anything.
+- A Stop hook that always asks the agent to double-check its results. When I tried this on small tasks where the agent had edited code after its last run, it reran the tests every time (6 of 6, Claude Haiku).
+
+The trade-off is cost. Both fire on every stop, so every turn ends with a test run, and the second also adds a model turn, even when nothing changed or nothing was claimed. A test-running hook also has to know each project's test command and setup (a virtualenv, environment variables, a subfolder, a database). `guard` runs nothing: it reads the session in well under a second and only sends the agent back when the final message claims a pass that no run after the last edit supports (about 6% of claims in my logs), naming the edit that made the run stale.
+
+If your suite runs in a few seconds and needs no setup, running it on every stop is the better choice. `guard` is for suites that are slow or fiddly to run, and for when you don't want an extra turn on every stop.
 
 ### As a Claude Code plugin
 
@@ -157,6 +170,7 @@ These are the gaps that remain. `record` and `--ci` close most of them once you 
 - Output with no summary. Codex keeps each command's full output. Claude Code saves output that is too long for the transcript to a file, which is read as long as it exists, and `record` keeps the full result too. A run abandoned before printing a result leaves nothing to read.
 - Files a script names at run time. Without `record` these make a claim "couldn't tell", never "backed". `record` settles them, but only in git checkouts and only for sessions after it was installed.
 - New agent versions can change the log format. Supported: Claude Code 2.x (Bash and PowerShell tools; Linux, macOS and Windows paths) and Codex CLI. The report lists the versions it read, warns about newer ones, and counts files it couldn't parse instead of dropping them silently.
+- Unbacked is not the same as false. "Code edited after the last run" means the claim wasn't verified after the edit; the edit may have been harmless, such as a comment or a test file. The report can't tell whether the tests would have passed, because nobody ran them at that point.
 - The numbers describe your sessions, projects and prompts. They are not a benchmark of the models.
 
 ## Options
