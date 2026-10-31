@@ -2,6 +2,27 @@
 
 **Published:** `agent-polygraph@0.2.0` is live as npm's `latest` release. The successful [staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41253375793) used GitHub OIDC and signed provenance. A later [npm registry verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41252503387) confirmed `latest` returned **0.2.0** and the correct GitHub repository. A GitHub commit alone does not publish a new npm release. The 0.2.0 tarball's bundled README contains a now-outdated prerelease notice, because npm versions are immutable; the GitHub README has been corrected.
 
+## Correcting the archived README (0.2.1 patch)
+
+The npm 0.2.0 package is immutable and retains a stale prerelease notice in its included `README.md`. The GitHub README has been made **version-neutral** so future npm archives won't claim an outdated publication status. `0.2.1` is the documentation-only patch intended to bring the corrected README to npm. **Do not describe 0.2.1 as published until its staged package has been reviewed, approved with npm 2FA, and verified in the public registry.**
+
+## GitHub Release for published 0.2.0
+
+The GitHub Release must have tag `v0.2.0` pointing to the exact **published source commit** `2ce7e41cf3e2f14d385aca3ffcde7a986617cbaa`, not the later documentation commits. Release notes are in [docs/releases/v0.2.0.md](releases/v0.2.0.md).
+
+If that release does not yet exist, an authorized repository maintainer can create it with the GitHub CLI from a clone:
+
+```sh
+gh release create v0.2.0 \
+  --repo EleChon-pixel/agent-polygraph \
+  --target 2ce7e41cf3e2f14d385aca3ffcde7a986617cbaa \
+  --title "agent-polygraph v0.2.0" \
+  --notes-file docs/releases/v0.2.0.md \
+  --latest=false
+```
+
+First check `gh release view v0.2.0 -R EleChon-pixel/agent-polygraph` to avoid duplicate creation. A tag is not an additional branch. To preserve auditability, **never retarget or force-move an existing v0.2.0 tag** if its commit does not match.
+
 ## One-time owner setup (requires your npm account)
 
 Configure **Trusted Publishing** on the existing [npm package](https://www.npmjs.com/package/agent-polygraph) under Package settings → Trusted Publisher → GitHub Actions.
