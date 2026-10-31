@@ -47,6 +47,8 @@ Under the tables it prints the latest examples: what the agent claimed, the last
 
 **What the benchmarks actually show:** agent-polygraph detects stale test claims more reliably than a *simple any-prior-pass rule* in [25 authored replay scenarios](docs/benchmark.md) (14/14 unbacked claims versus 7/14). In [12 instrumented projects using real test executions](docs/live-evaluation.md), its selective guard requested **5** additional tests and detected **3 of 7** failing final suites; rerunning the full suite every time required **12** additional tests and detected **all 7**. That is an efficiency-versus-coverage trade-off, **not** evidence that the guard improves overall defect detection. [Public-session workload projections](docs/benchmark.md) are separate from actual executed tests. The independently labeled human study is [still open](https://github.com/EleChon-pixel/agent-polygraph/issues/3).
 
+**npm release status:** The [public npm registry](https://www.npmjs.com/package/agent-polygraph) still serves **0.1.0**, while GitHub `main` contains the security-hardened **0.2.0 release candidate**. The automated tarball test passes, but new npm code will not be available to `npx` until it has been published. For the exact manual publishing procedure (GitHub OIDC trusted publisher), see [Release instructions](docs/releasing.md).
+
 ## Share your numbers
 
 ```sh
@@ -211,7 +213,7 @@ Before distributing a new version, verify `npm view agent-polygraph version`, th
 
 ## Privacy
 
-New recordings intentionally minimize local data. The agent hook stores a keyed command fingerprint, the runner's result and optional fingerprints of source files. It does **not** save raw command text, test output or copies of repository files in its snapshot store. The shell integration saves only a recognized test-runner category, time, folder and exit code. Local record files, key and snapshot metadata are owner-only on Unix. The secret fingerprint key is stored in `$AGENT_POLYGRAPH_HOME/record-key` (default `~/.agent-polygraph/record-key`).
+New recordings intentionally minimize local data. The agent hook stores a keyed command fingerprint, the runner's result and optional fingerprints of source files. It does **not** save raw command text, test output or copies of repository files in its snapshot store. The shell integration saves only a recognized test-runner category, time, folder and exit code. Local record files, key and snapshot metadata are owner-only on Unix. Hook settings and shell startup files are replaced atomically, preserving their permissions and creating private recovery backups under `~/.agent-polygraph/backups` (see [recovery](docs/releasing.md#recovery-for-installed-hooks)). The secret fingerprint key is stored in `$AGENT_POLYGRAPH_HOME/record-key` (default `~/.agent-polygraph/record-key`).
 
 **Existing installations:** records made before this update may still include full commands, and older versions may have created a local Git object store with duplicate source contents. Upgrading does **not** remove those files. After reviewing whether you still need the historical evidence, uninstall recording and manually remove the old `~/.agent-polygraph/records` and `~/.agent-polygraph/objects` directories. Removing historical records means those sessions will lose their supplemental evidence; the original Claude Code/Codex transcripts remain untouched. Do not delete `record-key` while retaining version 2 records that rely on matching fingerprints.
 
