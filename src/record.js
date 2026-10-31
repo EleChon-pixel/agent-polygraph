@@ -13,6 +13,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { readSettings, writeSettings } from "./safe-config.js";
 import { execFileSync } from "node:child_process";
 import { isTestCommand, isCodePath, mayWriteFiles, shellWrites, outcomeFromOutput, passedCount } from "./classify.js";
 
@@ -332,10 +334,10 @@ function readLines(file) {
 const MARK = "# agent-polygraph record";
 export const shellScript = () => path.join(home(), "shell.sh");
 
-const shQuote = (s) => "'" + String(s).replaceAll("'", "'\\''") + "'";
+const shQuote = (s) => "'" + String(s).replaceAll("'", "'\"'\"'") + "'";
 const SHELL_SNIPPET = () => fs.readFileSync(new URL("./shell/record.sh", import.meta.url), "utf8")
   .replace("__APG_NODE__", shQuote(process.execPath))
-  .replace("__APG_ENTRY__", shQuote(fs.realpathSync(new URL("../bin/polygraph.js", import.meta.url).pathname)));
+  .replace("__APG_ENTRY__", shQuote(fs.realpathSync(fileURLToPath(new URL("../bin/polygraph.js", import.meta.url)))));
 
 const RC_FILES = () => [".bashrc", ".zshrc"].map((f) => path.join(os.homedir(), f));
 
@@ -343,18 +345,19 @@ export function installShell() {
   const script = shellScript();
   secureWrite(script, SHELL_SNIPPET());
   secureDirectory(path.join(home(), "records"));
-  const line = `[ -f "${script}" ] && . "${script}"  ${MARK}`;
+  const quoted = shQuote(script);
+  const line = `[ -f ${quoted} ] && . ${quoted}  ${MARK}`;
   const out = [];
   for (const rc of RC_FILES()) {
     const shell = rc.endsWith("zshrc") ? "zsh" : "bash";
     if (!fs.existsSync(rc) && !onPath(shell)) continue;
-    const text = fs.existsSync(rc) ? fs.readFileSync(rc, "utf8") : "";
+    const text = readSettings(rc).text ?? "";
     if (text.includes(MARK)) {
       out.push({ file: rc, changed: false });
       continue;
     }
-    fs.appendFileSync(rc, (text && !text.endsWith("\n") ? "\n" : "") + line + "\n");
-    out.push({ file: rc, changed: true });
+    const result = writeSettings(rc, text + (text && !text.endsWith("\n") ? "\n" : "") + line + "\n");
+    out.push({ file: rc, changed: result.changed, backup: result.backup });
   }
   return { script, rcs: out };
 }
@@ -363,10 +366,11 @@ export function uninstallShell() {
   const out = [];
   for (const rc of RC_FILES()) {
     if (!fs.existsSync(rc)) continue;
-    const text = fs.readFileSync(rc, "utf8");
+    const text = readSettings(rc).text;
+    if (text == null) continue;
     if (!text.includes(MARK)) continue;
-    fs.writeFileSync(rc, text.split("\n").filter((l) => !l.includes(MARK)).join("\n"));
-    out.push({ file: rc, changed: true });
+    const result = writeSettings(rc, text.split("\n").filter((l) => !l.includes(MARK)).join("\n"));
+    out.push({ file: rc, changed: result.changed, backup: result.backup });
   }
   fs.rmSync(shellScript(), { force: true });
   return { rcs: out };
