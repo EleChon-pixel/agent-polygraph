@@ -19,8 +19,8 @@ jobs:
       - name: Evaluate previously unused external session dataset
         env:
           # Pin after the first successful provenance check.
-          HOLDOUT_DATASET: SALT-NLP/SWE-chat
+          HOLDOUT_DATASET: crispwisp/wisp-claude-code-sessions
           HOLDOUT_PREFIX: transcripts/
           HOLDOUT_EXCLUDE_REV: ''
-          HOLDOUT_REV: main
+          HOLDOUT_REV: c2c90b59174318ab0b163ec9c9ac82bb879288ce
         run: node scripts/eval-holdout.mjs
