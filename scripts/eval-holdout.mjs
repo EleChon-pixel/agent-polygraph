@@ -101,16 +101,21 @@ try {
   }
   const unseen = siblings.filter(x=>!previous.has(x));
   results.newNames = unseen.length;
-  for (const [i, name] of unseen.entries()) {
+  // Bounded concurrency prevents thousands of sequential network round trips.
+  // The first 2x MAX_FILES names are sampled in fixed order before processing.
+  const sample = unseen.slice(0, MAX_FILES * 2);
+  for (let offset = 0; offset < sample.length; offset += 8) {
     if (results.filesRead >= MAX_FILES || results.bytesRead >= MAX_TOTAL) break;
+    await Promise.all(sample.slice(offset,offset+8).map(async (name,j) => {
+    const i = offset+j;
     const remote = "https://huggingface.co/datasets/" + DATASET + "/resolve/" + results.revision + "/" + name.split("/").map(encodeURIComponent).join("/");
     try {
-      const response = await fetch(remote);
-      if (!response.ok) { results.readErrors++; continue; }
+      const response = await fetch(remote,{signal:AbortSignal.timeout(12000)});
+      if (!response.ok) { results.readErrors++; return; }
       const size = Number(response.headers.get("content-length") || 0);
-      if (size > MAX_BYTES) continue;
+      if (size > MAX_BYTES) return;
       const buf = Buffer.from(await response.arrayBuffer());
-      if (buf.length > MAX_BYTES || buf.length+results.bytesRead > MAX_TOTAL) continue;
+      if (buf.length > MAX_BYTES || buf.length+results.bytesRead > MAX_TOTAL || results.filesRead >= MAX_FILES) return;
       results.bytesRead += buf.length;
       results.filesRead++;
       const raw = buf.toString("utf8");
@@ -127,11 +132,11 @@ try {
       }
       const references = independentlyLabel(recs);
       results.rawClaimCandidates += references.length;
-      if (!references.length) continue;
+      if (!references.length) return;
       const local = path.join(dir,"trace-"+i+".jsonl");
       fs.writeFileSync(local,raw,{mode:0o600});
       const session = await claude.parse({ id:"holdout-"+i, files:[local] });
-      if (session.unrecognized || !session.events.length) continue;
+      if (session.unrecognized || !session.events.length) return;
       results.filesParsed++;
       const reviewed = analyzeSession(session);
       const claimedEvents = session.events.filter(x=>x.kind==="say" && Number.isFinite(x.ts) && claimPattern.test(x.text||""));
@@ -152,6 +157,7 @@ try {
     } catch {
       results.readErrors++;
     }
+    }));
   }
   results.agreementRate = results.compared ? Number((results.agreement/results.compared).toFixed(3)) : null;
   console.log(JSON.stringify(results,null,2));
