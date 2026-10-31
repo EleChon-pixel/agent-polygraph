@@ -49,6 +49,10 @@ The result was reproduced in the [four-version Node CI run](https://github.com/E
 
 These results demonstrate better *coverage on this constructed suite* than the minimal comparator, **not** 100% accuracy in the wild, not superiority over a real always-rerun test hook, and not superiority to specialized competitors. Since cases were designed with agent-polygraph's behavior in mind, they have strong selection bias. The retrospective public-data workload projection above is a separate experiment.
 
+## Executed test policy comparison
+
+A follow-up experiment runs **actual test suites** after the guard decides, measures executed test processes and time, and counts failing final suites with an independent executed test oracle. Unlike the projections above, its [measured results](live-evaluation.md) show both the efficiency benefit and coverage losses: **5 extra test executions, 3/7 failures detected** for the selective guard, versus **12 executions, 7/7 detected** for blanket rerunning, across 12 constructed scenarios on one runner. These are not live autonomous agent trials.
+
 ## What would establish a stronger claim?
 
 A comparative, externally labeled study needs the **same frozen sessions or tasks** for all policies, labels independently reviewed by someone who did not write the verifier, and separate reporting of:
