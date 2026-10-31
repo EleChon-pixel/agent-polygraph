@@ -11,6 +11,7 @@ import * as codex from "./sources/codex.js";
 import { analyzeSession } from "./analyze.js";
 import { findTestClaim, findTestClaims } from "./classify.js";
 import { applyRecords } from "./record.js";
+import { readSettings, writeSettings } from "./safe-config.js";
 
 
 /** Hook entry point: read the Stop payload on stdin, maybe print a block decision. */
@@ -200,7 +201,8 @@ export function install(opts) {
     }
     if (changed) {
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+      const save = writeSettings(file, JSON.stringify(config, null, 2) + "\n");
+      return { agent, file, changed, command, backup: save.backup };
     }
     return { agent, file, changed, command };
   });
@@ -221,14 +223,16 @@ export function uninstall(opts) {
     if (kept.length) config.hooks[event] = kept;
     else delete config.hooks[event];
     if (!Object.keys(config.hooks).length) delete config.hooks;
-    fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
-    return { agent, file, changed: true };
+    const save = writeSettings(file, JSON.stringify(config, null, 2) + "\n");
+    return { agent, file, changed: true, backup: save.backup };
   });
 }
 
 function readJson(file) {
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+    const { text } = readSettings(file);
+    if (text === null) return {};
+    return JSON.parse(text);
   } catch (e) {
     if (e.code === "ENOENT") return {};
     throw new Error(`${file} is not valid JSON; fix or remove it first (${e.message})`);
