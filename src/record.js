@@ -16,12 +16,58 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { isTestCommand, mayWriteFiles, shellWrites, outcomeFromOutput, passedCount } from "./classify.js";
+import { isTestCommand, isCodePath, mayWriteFiles, shellWrites, outcomeFromOutput, passedCount } from "./classify.js";
 
 export const home = () => process.env.AGENT_POLYGRAPH_HOME || path.join(os.homedir(), ".agent-polygraph");
 const hash = (s) => crypto.createHash("sha1").update(String(s)).digest("hex").slice(0, 16);
 export const recordsFile = (transcript) => path.join(home(), "records", hash(path.resolve(transcript)) + ".jsonl");
 export const terminalFile = () => path.join(home(), "records", "terminal.jsonl");
+
+function secureDirectory(dir) {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") fs.chmodSync(dir, 0o700);
+}
+function secureWrite(file, data, append = false) {
+  secureDirectory(path.dirname(file));
+  const fd = fs.openSync(file, append ? "a" : "w", 0o600);
+  try {
+    if (process.platform !== "win32") fs.fchmodSync(fd, 0o600);
+    fs.writeSync(fd, data);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+// The key stays on the local machine. A keyed digest lets us correlate commands
+// without ever persisting their text (which may contain tokens/passwords).
+let keyCache;
+let keyCachePath;
+function localKey() {
+  const file = path.join(home(), "record-key");
+  if (keyCachePath === file && keyCache) return keyCache;
+  secureDirectory(home());
+  let key;
+  try {
+    key = fs.readFileSync(file);
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    const candidate = crypto.randomBytes(32);
+    try {
+      const fd = fs.openSync(file, "wx", 0o600);
+      try { fs.writeSync(fd, candidate); } finally { fs.closeSync(fd); }
+      key = candidate;
+    } catch (race) {
+      if (race.code !== "EEXIST") throw race;
+      key = fs.readFileSync(file);
+    }
+  }
+  if (key.length !== 32) throw new Error("Invalid agent-polygraph local record key");
+  if (process.platform !== "win32") fs.chmodSync(file, 0o600);
+  keyCache = key;
+  keyCachePath = file;
+  return key;
+}
+export const commandFingerprint = (cmd) => crypto.createHmac("sha256", localKey()).update(String(cmd)).digest("hex");
 
 // --- the hook --------------------------------------------------------------------------
 
@@ -34,7 +80,7 @@ export function runRecordHook(stdinText) {
     const test = isTestCommand(cmd);
     if (!test && !mayWriteFiles(cmd) && !shellWrites(cmd).unresolved) return;
     const cwd = p.cwd || process.cwd();
-    const rec = { v: 1, ts: Date.now(), id: p.tool_use_id || null, tool: p.tool_name || null, cmd, cwd };
+    const rec = { v: 2, ts: Date.now(), id: p.tool_use_id || null, tool: p.tool_name || null, cmdKey: commandFingerprint(cmd), cwd };
     try {
       rec.tree = snapshot(cwd);
     } catch {}
@@ -47,8 +93,7 @@ export function runRecordHook(stdinText) {
     }
     if (!rec.tree && !rec.outcome) return;
     const file = recordsFile(p.transcript_path);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.appendFileSync(file, JSON.stringify(rec) + "\n");
+    secureWrite(file, JSON.stringify(rec) + "\n", true);
   } catch {}
 }
 
@@ -69,46 +114,49 @@ function outputOf(r) {
   return parts.filter((x) => typeof x === "string").join("\n");
 }
 
-// --- working-tree snapshots ---------------------------------------------------------------
+// --- working-tree fingerprints -------------------------------------------------------------
 
-/**
- * The working tree as a git tree id, untracked files included, ignored files left out.
- * Built with a temporary index and a private object store (the repository's own objects
- * are read through git's alternates), so nothing in the repository changes.
- */
+// No git add, private git object store or copies of file contents. Only an HMAC of
+// the content of source files is stored, along with paths relative to the checkout.
+// Untracked but non-ignored source files are included; ignored and non-source files
+// are never read. Unreadable/oversized files make the comparison inconclusive.
+const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
+
 export function snapshot(cwd) {
-  const git = (args, env = {}, dir = cwd) =>
-    execFileSync("git", args, { cwd: dir, env: { ...process.env, ...env }, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 8000, maxBuffer: 8 << 20 }).trim();
-  const root = git(["rev-parse", "--show-toplevel"]);
-  const [index, objects] = git(["rev-parse", "--git-path", "index", "--git-path", "objects"])
-    .split("\n")
-    .map((p) => path.resolve(cwd, p));
-  const store = path.join(home(), "objects", hash(objects));
-  fs.mkdirSync(store, { recursive: true });
-  const tmp = path.join(os.tmpdir(), `agent-polygraph-${process.pid}-${Date.now()}.index`);
-  try {
-    // starting from the real index keeps git's stat cache: only changed files are hashed
-    if (fs.existsSync(index)) fs.copyFileSync(index, tmp);
-    const env = { GIT_INDEX_FILE: tmp, GIT_OBJECT_DIRECTORY: store, GIT_ALTERNATE_OBJECT_DIRECTORIES: objects };
-    git(["add", "-A", "--ignore-errors", "--", "."], env, root);
-    const tree = git(["write-tree"], env, root);
-    return { root, tree, objects, store };
-  } finally {
-    fs.rmSync(tmp, { force: true });
+  const git = (args, options = {}) => execFileSync("git", args, {
+    cwd, encoding: options.encoding ?? "utf8", stdio: ["ignore", "pipe", "ignore"],
+    timeout: 8000, maxBuffer: 16 << 20,
+  });
+  const root = git(["rev-parse", "--show-toplevel"]).trim();
+  const files = Object.create(null);
+  const paths = git(["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean);
+  const key = localKey();
+  let complete = true;
+  for (const name of paths) {
+    if (!isCodePath(name)) continue;
+    const file = path.join(root, name);
+    try {
+      const st = fs.lstatSync(file);
+      if (st.isSymbolicLink()) { complete = false; continue; } // never follow links or certify an unresolved change
+      if (!st.isFile() || st.size > MAX_SOURCE_BYTES) { complete = false; continue; }
+      // Re-check after reading so concurrent writes cannot produce a false receipt.
+      const contents = fs.readFileSync(file);
+      if (contents.length > MAX_SOURCE_BYTES || fs.statSync(file).size !== contents.length) {
+        complete = false;
+        continue;
+      }
+      files[name] = crypto.createHmac("sha256", key).update(contents).digest("hex");
+    } catch {
+      complete = false;
+    }
   }
+  return { root, files, complete };
 }
 
-/** Paths (relative to the checkout) that differ between two snapshots of it. */
 export function treeDiff(a, b) {
-  const gitDir = path.dirname(a.objects);
-  const out = execFileSync("git", ["diff", "--name-only", "-z", "--no-renames", a.tree, b.tree], {
-    env: { ...process.env, GIT_DIR: gitDir, GIT_OBJECT_DIRECTORY: a.store, GIT_ALTERNATE_OBJECT_DIRECTORIES: [a.objects, b.store].join(path.delimiter) },
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "ignore"],
-    timeout: 10000,
-    maxBuffer: 16 << 20,
-  });
-  return out.split("\0").filter(Boolean);
+  if (!a || !b || a.root !== b.root || !a.complete || !b.complete) return null;
+  const names = new Set([...Object.keys(a.files), ...Object.keys(b.files)]);
+  return [...names].filter((name) => a.files[name] !== b.files[name]);
 }
 
 // --- using the records -----------------------------------------------------------------------
@@ -127,11 +175,12 @@ export function applyRecords(session, { terminal = loadTerminal() } = {}) {
   if (recs.length) {
     session.treeDiff = treeDiff;
     // a record belongs to the command with the same text, recorded after it started
-    const free = recs.map((r) => ({ ...r, key: squash(r.cmd) }));
+    const free = recs.map((r) => ({ ...r, key: r.cmdKey || (r.cmd ? squash(r.cmd) : null) }));
     for (const ev of session.events) {
       if (ev.kind !== "cmd" || ev.external) continue;
-      const key = squash(ev.cmd);
-      const k = free.findIndex((r) => r && (ev.id && r.id ? r.id === ev.id : r.key === key && r.ts >= (ev.ts ?? 0) - 2000));
+      const key = commandFingerprint(ev.cmd);
+      const legacyKey = squash(ev.cmd);
+      const k = free.findIndex((r) => r && (ev.id && r.id ? r.id === ev.id : r.key != null && r.key === (r.cmdKey ? key : legacyKey) && r.ts >= (ev.ts ?? 0) - 2000));
       if (k < 0) continue;
       const r = free[k];
       free[k] = null;
@@ -165,8 +214,9 @@ function addTerminalRuns(session, runs) {
   for (const r of runs) {
     const start = Math.round(r.start * 1000);
     const end = Math.round((r.end ?? r.start) * 1000);
-    if (!(start >= session.start && start <= session.end) || !r.cwd || !related(r.cwd) || !isTestCommand(r.cmd)) continue;
-    const ev = { kind: "cmd", ts: start, seq: Number.MAX_SAFE_INTEGER, cmd: r.cmd, workdir: r.cwd, external: "terminal", sub: false };
+    const runner = r.runner || r.cmd; // legacy raw-command records are still readable
+    if (!(start >= session.start && start <= session.end) || !r.cwd || !related(r.cwd) || !runner || !isTestCommand(runner)) continue;
+    const ev = { kind: "cmd", ts: start, seq: Number.MAX_SAFE_INTEGER, cmd: runner, workdir: r.cwd, external: "terminal", sub: false };
     session.events.push(ev, { kind: "result", of: ev, ts: end, seq: Number.MAX_SAFE_INTEGER, exitCode: typeof r.exit === "number" ? r.exit : null, isError: null, output: "" });
     added++;
   }
@@ -197,8 +247,8 @@ const RC_FILES = () => [".bashrc", ".zshrc"].map((f) => path.join(os.homedir(), 
 
 export function installShell() {
   const script = shellScript();
-  fs.mkdirSync(path.join(home(), "records"), { recursive: true });
-  fs.writeFileSync(script, SHELL_SNIPPET());
+  secureWrite(script, SHELL_SNIPPET());
+  secureDirectory(path.join(home(), "records"));
   const line = `[ -f "${script}" ] && . "${script}"  ${MARK}`;
   const out = [];
   for (const rc of RC_FILES()) {
