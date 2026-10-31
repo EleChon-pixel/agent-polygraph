@@ -70,7 +70,7 @@ function secureWrite(file, data, append = false) {
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
-  const fd = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_WRONLY | fs.constants.O_APPEND | NOFOLLOW, 0o600);
+  const fd = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_WRONLY | (append ? fs.constants.O_APPEND : 0) | NOFOLLOW, 0o600);
   try {
     verifyPrivateFile(fd, file);
     if (!append) fs.ftruncateSync(fd, 0);
