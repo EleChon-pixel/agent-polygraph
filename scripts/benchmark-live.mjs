@@ -34,7 +34,7 @@ const out = { dataset: "instrumented-local-projects", node: process.version, pla
   cases: [], totals: {} };
 let seq = 0;
 function shell(dir, focused = false) {
-  const args = ["--test", focused ? "test/smoke.test.mjs" : "test"];
+  const args = focused ? ["--test", "test/smoke.test.mjs"] : ["--test", "test/unit.test.mjs", "test/smoke.test.mjs"];
   const start = performance.now();
   const result = spawnSync(process.execPath, args, { cwd: dir, encoding: "utf8", timeout: 30000,
     maxBuffer: 1 << 20, env: { ...process.env, NODE_DISABLE_COLORS: "1" } });
