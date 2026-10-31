@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { install, uninstall } from "../src/guard.js";
 import { installShell, uninstallShell, shellScript } from "../src/record.js";
 import { readSettings, writeSettings, backupDirectory } from "../src/safe-config.js";
@@ -53,7 +54,7 @@ test("guard hook install/uninstall back up pre-existing JSON and preserve existi
     const added=install({agents:["claude"],cwd:root,command:"agent-polygraph guard"})[0];
     assert.equal(added.changed,true);
     assert.ok(added.backup && fs.existsSync(added.backup));
-    assert.equal(fs.statSync(file).mode & 0o777,fs.statSync(added.backup).mode & 0o777 & 0o600 ? 0o640 : 0o640);
+    if(process.platform!=="win32") assert.equal(fs.statSync(file).mode & 0o777,0o640);
     const rm=uninstall({agents:["claude"],cwd:root})[0];
     assert.equal(rm.changed,true);
     assert.ok(rm.backup);
@@ -75,11 +76,11 @@ test("shell installer escapes single quotes, dollar signs and spaces in startup 
     const added=installShell();
     assert.ok(added.rcs.find(x=>x.file===rc)?.changed);
     assert.equal(fs.readFileSync(rc,"utf8").includes("agent-polygraph record"),true);
-    const bash=spawnSync("bash",["-c",'source "$HOME/.bashrc"; test -n "$__apg_node"; test -n "$__apg_entry"'],{
+    const bash=spawnSync("bash",["-ic",'source "$HOME/.bashrc"; printf "%s" "$__apg_entry"'],{
       env:{...process.env,HOME:home},encoding:"utf8",timeout:10000
     });
-    // The shell record snippet exits early in noninteractive shells; instead
-    // parse the generated command and verify it sources safely.
+    assert.equal(bash.status,0,bash.stderr);
+    assert.equal(bash.stdout.trim(),fs.realpathSync(fileURLToPath(new URL("../bin/polygraph.js",import.meta.url))));
     const syntax=spawnSync("bash",["-n",rc],{encoding:"utf8"});
     assert.equal(syntax.status,0,syntax.stderr);
     const script=fs.readFileSync(shellScript(),"utf8");
