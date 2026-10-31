@@ -93,10 +93,14 @@ async function record(argv) {
   for (const r of hooks) {
     const verb = values.install ? (r.changed ? "added PostToolUse hook to" : "already installed in") : r.changed ? "removed PostToolUse hook from" : "nothing to remove in";
     console.log(`${r.agent === "claude" ? "Claude Code" : "Codex"}: ${verb} ${r.file}`);
+    if (r.backup) console.log(`  Recovery backup: ${r.backup}`);
   }
   if (values.shell) {
     const out = values.install ? rec.installShell() : rec.uninstallShell();
-    for (const r of out.rcs) console.log(`Shell: ${values.install ? (r.changed ? "added a line to" : "already in") : "removed the line from"} ${r.file}`);
+    for (const r of out.rcs) {
+      console.log(`Shell: ${values.install ? (r.changed ? "added a line to" : "already in") : "removed the line from"} ${r.file}`);
+      if (r.backup) console.log(`  Recovery backup: ${r.backup}`);
+    }
     if (values.install) console.log(`Shell: ${out.rcs.length ? "open a new terminal to start logging" : "no ~/.bashrc or ~/.zshrc found; source " + out.script + " from your shell's startup file"}. Only interactive bash and zsh are supported.`);
   }
   if (values.install) {
@@ -139,6 +143,7 @@ async function guard(argv) {
   for (const r of results) {
     const verb = values.install ? (r.changed ? "added Stop hook to" : "already installed in") : r.changed ? "removed Stop hook from" : "nothing to remove in";
     console.log(`${r.agent === "claude" ? "Claude Code" : "Codex"}: ${verb} ${r.file}`);
+    if (r.backup) console.log(`  Recovery backup: ${r.backup}`);
   }
   if (values.install) {
     console.log(`\nHook command: ${results[0].command}`);
