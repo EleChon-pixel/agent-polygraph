@@ -20,6 +20,8 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      - name: Install pinned release npm version
+        run: npm install --global npm@11.21.0
       - name: Verify npm pack and clean offline install
         env:
           CHECK_NPM_REGISTRY: '1'
