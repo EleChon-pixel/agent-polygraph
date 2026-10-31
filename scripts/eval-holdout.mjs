@@ -11,13 +11,13 @@ import crypto from "node:crypto";
 import * as claude from "../src/sources/claude.js";
 import { analyzeSession } from "../src/analyze.js";
 
-const DATASET = process.env.HOLDOUT_DATASET || "SALT-NLP/SWE-chat";
+const DATASET = process.env.HOLDOUT_DATASET || "crispwisp/wisp-claude-code-sessions";
 const PREFIX = process.env.HOLDOUT_PREFIX || "transcripts/";
 const EXCLUDE_REV = process.env.HOLDOUT_EXCLUDE_REV ?? "";
 const pin = process.env.HOLDOUT_REV || "main";
-const MAX_FILES = 250;
-const MAX_BYTES = 2_000_000;
-const MAX_TOTAL = 50_000_000;
+const MAX_FILES = 150;
+const MAX_BYTES = 14_000_000;
+const MAX_TOTAL = 40_000_000;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apg-holdout-"));
 const fail = (m) => { throw Error("holdout: " + m); };
 const passPattern = /(?:\b\d+\s+passed\b(?:(?!failed).)*\b0\s+failed\b|\b\d+\s+passed in\b|#\s*pass\s+[1-9]\d*\s*(?:\r?\n|$)[\s\S]*?#\s*fail\s+0\b|ℹ\s*pass\s+[1-9]\d*\s*(?:\r?\n|$)[\s\S]*?ℹ\s*fail\s+0\b)/i;
