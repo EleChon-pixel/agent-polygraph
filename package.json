@@ -1,6 +1,6 @@
 {
   "name": "agent-polygraph",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Check your coding agents' \"tests pass\" claims against what actually ran. Reads Claude Code and Codex session logs locally.",
   "type": "module",
   "bin": {
