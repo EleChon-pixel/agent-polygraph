@@ -1,0 +1,23 @@
+name: Independent-reference public holdout audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/eval-holdout.mjs
+      - .github/workflows/holdout-evaluation.yml
+permissions:
+  contents: read
+jobs:
+  oracle-holdout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Evaluate previously unused external session dataset
+        env:
+          # Pin after the first successful provenance check.
+          HOLDOUT_REV: main
+        run: node scripts/eval-holdout.mjs
