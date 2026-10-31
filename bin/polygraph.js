@@ -67,11 +67,18 @@ async function record(argv) {
       uninstall: { type: "boolean" },
       global: { type: "boolean" },
       shell: { type: "boolean" },
+      "shell-event": { type: "boolean" },
       agent: { type: "string", multiple: true },
       command: { type: "string" },
     },
   });
   const rec = await import("../src/record.js");
+  if (values["shell-event"]) {
+    const chunks = [];
+    for await (const piece of process.stdin) chunks.push(piece);
+    rec.runShellRecord(Buffer.concat(chunks).toString("utf8"));
+    return;
+  }
   if (!values.install && !values.uninstall) {
     // invoked by the agent as a PostToolUse hook: quiet, and never in the way
     const chunks = [];

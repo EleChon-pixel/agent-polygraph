@@ -4,7 +4,9 @@
 case $- in *i*) ;; *) return 0 2>/dev/null ;; esac
 [ -n "${CLAUDECODE:-}${CODEX_SANDBOX:-}${CODEX_THREAD_ID:-}${CODEX_MANAGED_BY_NPM:-}" ] && return 0 2>/dev/null
 
-__apg_file="${AGENT_POLYGRAPH_HOME:-$HOME/.agent-polygraph}/records/terminal.jsonl"
+# Substituted with an installed, persistent CLI path by record --install --shell.
+__apg_node=__APG_NODE__
+__apg_entry=__APG_ENTRY__
 __apg_runner=
 
 __apg_now() {
@@ -18,7 +20,7 @@ __apg_esc() {
 __apg_pre() {
   __apg_runner=
   # Conservative: do not treat compound commands (e.g. npm test; true) as proof.
-  case "$1" in *';'*|*'|'*|*'&'*|*'\x60'*|*'$('*|*$'\n'*) return 0 ;; esac
+  case "$1" in *';'*|*'|'*|*'&'*|*'`'*|*'$('*|*$'\n'*) return 0 ;; esac
   local c="${1#${1%%[![:space:]]*}}"
   case "$c" in
     "pytest"|"pytest "*|"python -m pytest"*|"python3 -m pytest"*) __apg_runner="pytest" ;;
@@ -38,14 +40,11 @@ __apg_pre() {
 __apg_post() {
   local s=$?
   if [ -n "$__apg_runner" ]; then
-    (
-      umask 077
-      mkdir -p "${__apg_file%/*}" 2>/dev/null || exit 0
-      chmod 700 "${__apg_file%/*}" 2>/dev/null || exit 0
-      printf '{"v":2,"kind":"terminal","start":%s,"end":%s,"exit":%s,"cwd":"%s","runner":"%s"}\n' \
-        "$__apg_t0" "$(__apg_now)" "$s" "$(__apg_esc "$__apg_dir")" "$__apg_runner" >>"$__apg_file" 2>/dev/null
-      chmod 600 "$__apg_file" 2>/dev/null
-    )
+    # The CLI validates input and writes with O_NOFOLLOW; shell redirection
+    # cannot be used here because it would follow an attacker-created symlink.
+    printf '{"v":2,"kind":"terminal","start":%s,"end":%s,"exit":%s,"cwd":"%s","runner":"%s"}\n' \
+      "$__apg_t0" "$(__apg_now)" "$s" "$(__apg_esc "$__apg_dir")" "$__apg_runner" |
+      "$__apg_node" "$__apg_entry" record --shell-event >/dev/null 2>&1
     __apg_runner=
   fi
   return $s

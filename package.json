@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "test": "node --test",
-    "start": "node bin/polygraph.js"
+    "start": "node bin/polygraph.js",
+    "benchmark:demo": "node scripts/benchmark.mjs --demo"
   },
   "engines": {
     "node": ">=18.3"

@@ -13,4 +13,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
+      - run: npm run benchmark:demo
       - run: node bin/polygraph.js --claude-dir /nonexistent --codex-dir /nonexistent
