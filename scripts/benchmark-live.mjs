@@ -136,12 +136,12 @@ try {
     guard: summarizePolicy(out.cases, "guard"),
     naive: summarizePolicy(out.cases, "naive"),
   };
+  console.log(JSON.stringify(out, null, 2));
   if (!out.cases.some((r) => r.oracleFail && !r.guard.detected)) throw Error("Missing guard limitation fixture");
   if (!out.cases.some((r) => r.oracleFail && !r.naive.detected && r.guard.detected)) throw Error("Missing freshness advantage fixture");
   if (out.totals.always.missedActualFailingFinalSuites !== 0) throw Error("Always-rerun must catch all deterministic failing suites");
   if (out.totals.guard.actualAdditionalTestExecutions >= out.totals.always.actualAdditionalTestExecutions)
     throw Error("Selective guard did not save test invocations");
-  console.log(JSON.stringify(out, null, 2));
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
