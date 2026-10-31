@@ -26,8 +26,14 @@ export const terminalFile = () => path.join(home(), "records", "terminal.jsonl")
 // Refuse redirected or shared record paths. These files are local evidence,
 // not a place to follow arbitrary symlinks or overwrite somebody else's files.
 const NOFOLLOW = fs.constants.O_NOFOLLOW || 0;
-function verifyPrivateFile(fd) {
+function verifyPrivateFile(fd, file = null) {
   const st = fs.fstatSync(fd);
+  if (file && process.platform === "win32") {
+    // Windows lacks O_NOFOLLOW; inspect the entry and opened file before I/O.
+    const entry = fs.lstatSync(file);
+    if (entry.isSymbolicLink() || !entry.isFile() || entry.dev !== st.dev || entry.ino !== st.ino)
+      throw new Error("Unsafe linked record file: " + file);
+  }
   if (!st.isFile() || st.nlink !== 1) throw new Error("Unsafe record file (not regular or multiply linked)");
   if (process.platform !== "win32") {
     if (st.uid !== process.getuid()) throw new Error("Record file belongs to another user");
@@ -38,10 +44,14 @@ function secureDirectory(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Act on the opened directory, not on a pathname that may be replaced
   // with a symlink between an lstat() check and chmod().
+  const entry = fs.lstatSync(dir);
+  if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error("Unsafe linked record directory");
   const fd = fs.openSync(dir, fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0) | NOFOLLOW);
   try {
     const st = fs.fstatSync(fd);
     if (!st.isDirectory()) throw new Error("Unsafe record directory");
+    if (process.platform === "win32" && fs.lstatSync(dir).isSymbolicLink())
+      throw new Error("Unsafe linked record directory");
     if (process.platform !== "win32") {
       if (st.uid !== process.getuid()) throw new Error("Record directory belongs to another user");
       fs.fchmodSync(fd, 0o700);
@@ -54,9 +64,15 @@ function secureWrite(file, data, append = false) {
   secureDirectory(path.dirname(file));
   // Never truncate before validating an existing file. O_NOFOLLOW rejects final
   // symlinks, and nlink/owner checks reject hard links and unrelated files.
+  try {
+    const entry = fs.lstatSync(file);
+    if (!entry.isFile() || entry.isSymbolicLink()) throw new Error("Unsafe linked record file: " + file);
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
   const fd = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_WRONLY | fs.constants.O_APPEND | NOFOLLOW, 0o600);
   try {
-    verifyPrivateFile(fd);
+    verifyPrivateFile(fd, file);
     if (!append) fs.ftruncateSync(fd, 0);
     fs.writeSync(fd, data);
   } finally {
@@ -76,7 +92,7 @@ function localKey() {
   const readKey = () => {
     const fd = fs.openSync(file, fs.constants.O_RDONLY | NOFOLLOW);
     try {
-      verifyPrivateFile(fd);
+      verifyPrivateFile(fd, file);
       return fs.readFileSync(fd);
     } finally {
       fs.closeSync(fd);
@@ -89,7 +105,7 @@ function localKey() {
     const candidate = crypto.randomBytes(32);
     try {
       const fd = fs.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | NOFOLLOW, 0o600);
-      try { verifyPrivateFile(fd); fs.writeSync(fd, candidate); } finally { fs.closeSync(fd); }
+      try { verifyPrivateFile(fd, file); fs.writeSync(fd, candidate); } finally { fs.closeSync(fd); }
       key = candidate;
     } catch (race) {
       if (race.code !== "EEXIST") throw race;
