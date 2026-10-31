@@ -23,15 +23,34 @@ const hash = (s) => crypto.createHash("sha1").update(String(s)).digest("hex").sl
 export const recordsFile = (transcript) => path.join(home(), "records", hash(path.resolve(transcript)) + ".jsonl");
 export const terminalFile = () => path.join(home(), "records", "terminal.jsonl");
 
+// Refuse redirected or shared record paths. These files are local evidence,
+// not a place to follow arbitrary symlinks or overwrite somebody else's files.
+const NOFOLLOW = fs.constants.O_NOFOLLOW || 0;
+function verifyPrivateFile(fd) {
+  const st = fs.fstatSync(fd);
+  if (!st.isFile() || st.nlink !== 1) throw new Error("Unsafe record file (not regular or multiply linked)");
+  if (process.platform !== "win32") {
+    if (st.uid !== process.getuid()) throw new Error("Record file belongs to another user");
+    fs.fchmodSync(fd, 0o600);
+  }
+}
 function secureDirectory(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  if (process.platform !== "win32") fs.chmodSync(dir, 0o700);
+  const st = fs.lstatSync(dir);
+  if (!st.isDirectory() || st.isSymbolicLink()) throw new Error("Unsafe record directory");
+  if (process.platform !== "win32") {
+    if (st.uid !== process.getuid()) throw new Error("Record directory belongs to another user");
+    fs.chmodSync(dir, 0o700);
+  }
 }
 function secureWrite(file, data, append = false) {
   secureDirectory(path.dirname(file));
-  const fd = fs.openSync(file, append ? "a" : "w", 0o600);
+  // Never truncate before validating an existing file. O_NOFOLLOW rejects final
+  // symlinks, and nlink/owner checks reject hard links and unrelated files.
+  const fd = fs.openSync(file, fs.constants.O_CREAT | fs.constants.O_WRONLY | fs.constants.O_APPEND | NOFOLLOW, 0o600);
   try {
-    if (process.platform !== "win32") fs.fchmodSync(fd, 0o600);
+    verifyPrivateFile(fd);
+    if (!append) fs.ftruncateSync(fd, 0);
     fs.writeSync(fd, data);
   } finally {
     fs.closeSync(fd);
@@ -47,22 +66,30 @@ function localKey() {
   if (keyCachePath === file && keyCache) return keyCache;
   secureDirectory(home());
   let key;
+  const readKey = () => {
+    const fd = fs.openSync(file, fs.constants.O_RDONLY | NOFOLLOW);
+    try {
+      verifyPrivateFile(fd);
+      return fs.readFileSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  };
   try {
-    key = fs.readFileSync(file);
+    key = readKey();
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
     const candidate = crypto.randomBytes(32);
     try {
-      const fd = fs.openSync(file, "wx", 0o600);
-      try { fs.writeSync(fd, candidate); } finally { fs.closeSync(fd); }
+      const fd = fs.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | NOFOLLOW, 0o600);
+      try { verifyPrivateFile(fd); fs.writeSync(fd, candidate); } finally { fs.closeSync(fd); }
       key = candidate;
     } catch (race) {
       if (race.code !== "EEXIST") throw race;
-      key = fs.readFileSync(file);
+      key = readKey();
     }
   }
   if (key.length !== 32) throw new Error("Invalid agent-polygraph local record key");
-  if (process.platform !== "win32") fs.chmodSync(file, 0o600);
   keyCache = key;
   keyCachePath = file;
   return key;
@@ -116,11 +143,44 @@ function outputOf(r) {
 
 // --- working-tree fingerprints -------------------------------------------------------------
 
-// No git add, private git object store or copies of file contents. Only an HMAC of
-// the content of source files is stored, along with paths relative to the checkout.
-// Untracked but non-ignored source files are included; ignored and non-source files
-// are never read. Unreadable/oversized files make the comparison inconclusive.
+// No git objects or copies of source files are written. Snapshots contain
+// bounded HMACs, which cannot be used as a substitute for the source contents.
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
+const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
+const MAX_SNAPSHOT_FILES = 10000;
+
+function safeParents(root, relative) {
+  let parent = root;
+  for (const part of relative.split(/[\\/]/).slice(0, -1)) {
+    if (!part || part === "." || part === "..") return false;
+    parent = path.join(parent, part);
+    const st = fs.lstatSync(parent);
+    if (!st.isDirectory() || st.isSymbolicLink()) return false;
+  }
+  return true;
+}
+
+function sourceFingerprint(root, name, key) {
+  const file = path.join(root, name);
+  // Refuse symlinks in the path. Open the leaf with O_NOFOLLOW too: a symlink
+  // substitution between lstat and open must not make us read its target.
+  if (path.isAbsolute(name) || name.split(/[\\/]/).includes("..") || !safeParents(root, name)) return null;
+  const initial = fs.lstatSync(file, { bigint: true });
+  if (!initial.isFile() || initial.nlink !== 1n || initial.size > BigInt(MAX_SOURCE_BYTES)) return null;
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | NOFOLLOW);
+  try {
+    const before = fs.fstatSync(fd, { bigint: true });
+    if (!before.isFile() || before.dev !== initial.dev || before.ino !== initial.ino ||
+        before.nlink !== 1n || before.size > BigInt(MAX_SOURCE_BYTES)) return null;
+    const bytes = fs.readFileSync(fd);
+    const after = fs.fstatSync(fd, { bigint: true });
+    if (before.size !== after.size || before.mtimeNs !== after.mtimeNs ||
+        before.ctimeNs !== after.ctimeNs || bytes.length !== Number(before.size)) return null;
+    return { bytes: bytes.length, digest: crypto.createHmac("sha256", key).update(bytes).digest("hex") };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 
 export function snapshot(cwd) {
   const git = (args, options = {}) => execFileSync("git", args, {
@@ -132,20 +192,16 @@ export function snapshot(cwd) {
   const paths = git(["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean);
   const key = localKey();
   let complete = true;
+  let total = 0;
+  let count = 0;
   for (const name of paths) {
     if (!isCodePath(name)) continue;
-    const file = path.join(root, name);
+    if (++count > MAX_SNAPSHOT_FILES) { complete = false; break; }
     try {
-      const st = fs.lstatSync(file);
-      if (st.isSymbolicLink()) { complete = false; continue; } // never follow links or certify an unresolved change
-      if (!st.isFile() || st.size > MAX_SOURCE_BYTES) { complete = false; continue; }
-      // Re-check after reading so concurrent writes cannot produce a false receipt.
-      const contents = fs.readFileSync(file);
-      if (contents.length > MAX_SOURCE_BYTES || fs.statSync(file).size !== contents.length) {
-        complete = false;
-        continue;
-      }
-      files[name] = crypto.createHmac("sha256", key).update(contents).digest("hex");
+      const data = sourceFingerprint(root, name, key);
+      if (!data || total + data.bytes > MAX_SNAPSHOT_BYTES) { complete = false; break; }
+      total += data.bytes;
+      files[name] = data.digest;
     } catch {
       complete = false;
     }
