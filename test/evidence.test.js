@@ -118,12 +118,13 @@ test("record: snapshots never write to the repository and see untracked, unignor
   fs.mkdirSync(path.join(dir, "build"));
   fs.writeFileSync(path.join(dir, "build", "out.py"), "ignored\n");
   const b = snapshot(dir);
-  assert.equal(a.tree, b.tree, "ignored files don't change the snapshot");
+  assert.deepEqual(a.files, b.files, "ignored files don't change the snapshot");
   fs.writeFileSync(path.join(dir, "src", "new.py"), "y = 2\n");
   fs.writeFileSync(path.join(dir, "src", "a.py"), "x = 3\n");
   const c = snapshot(dir);
   assert.deepEqual(treeDiff(a, c).sort(), ["src/a.py", "src/new.py"]);
   assert.equal(git("count-objects", "-v").toString(), before, "repository object store untouched");
+  assert.ok(!("tree" in c), "snapshot does not duplicate git objects");
   assert.match(git("status", "--porcelain").toString(), /^\?\? src\/new\.py$/m, "the real index is untouched too");
 });
 
@@ -177,6 +178,42 @@ test("record: the hook ignores commands that neither test nor write", () => {
   runRecordHook(JSON.stringify({ transcript_path: transcript, cwd: tmp(), tool_name: "Bash", tool_input: { command: "ls -la" }, tool_response: { stdout: "" } }));
   runRecordHook("not json");
   assert.equal(fs.existsSync(recordsFile(transcript)), false);
+});
+
+
+test("privacy: recorded commands are fingerprinted, file mode is private", async () => {
+  const { commandFingerprint } = await import("../src/record.js");
+  const dir = tmp();
+  const transcript = path.join(dir, "log.jsonl");
+  const secret = "api-token-DO-NOT-SAVE";
+  runRecordHook(JSON.stringify({ transcript_path: transcript, cwd: dir, tool_name: "Bash", tool_use_id: "test", tool_input: { command: "npm test --token=" + secret }, tool_response: { stdout: "4 passed" } }));
+  const file = recordsFile(transcript);
+  const stored = fs.readFileSync(file, "utf8");
+  assert.ok(!stored.includes(secret));
+  assert.ok(!stored.includes("npm test"));
+  assert.equal(JSON.parse(stored).cmdKey, commandFingerprint("npm test --token=" + secret));
+  if (process.platform !== "win32") assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+});
+
+test("privacy: snapshots exclude secrets, ignored files and symlinks", () => {
+  const { dir } = gitRepo();
+  const secret = path.join(dir, "secrets.txt");
+  fs.writeFileSync(secret, "private-key");
+  fs.symlinkSync(secret, path.join(dir, "src", "linked.py"));
+  const s = snapshot(dir);
+  assert.equal("tree" in s, false);
+  assert.deepEqual(Object.keys(s.files), ["src/a.py"]);
+  assert.ok(!JSON.stringify(s).includes("private-key"));
+});
+
+test("privacy: incomplete snapshots do not certify a passing test", () => {
+  const { dir } = gitRepo();
+  const a = snapshot(dir);
+  fs.unlinkSync(path.join(dir, "src", "a.py"));
+  fs.mkdirSync(path.join(dir, "src", "a.py"));
+  const b = snapshot(dir);
+  assert.equal(b.complete, false);
+  assert.equal(treeDiff(a, b), null);
 });
 
 // --- record: terminal runs ------------------------------------------------------------------
