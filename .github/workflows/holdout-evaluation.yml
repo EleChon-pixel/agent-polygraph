@@ -19,8 +19,8 @@ jobs:
       - name: Evaluate previously unused external session dataset
         env:
           # Pin after the first successful provenance check.
-          HOLDOUT_DATASET: trace-commons/agent-traces
-          HOLDOUT_PREFIX: sessions/claude_code/
-          HOLDOUT_EXCLUDE_REV: 112ebd4d03ce852b00e935d523107c3d0c9a65bf
+          HOLDOUT_DATASET: crispwisp/wisp-claude-code-sessions
+          HOLDOUT_PREFIX: transcripts/
+          HOLDOUT_EXCLUDE_REV: ''
           HOLDOUT_REV: main
         run: node scripts/eval-holdout.mjs
