@@ -34,6 +34,21 @@ This **supports a narrower, conditional claim**: in these session traces, claim-
 
 The same workflow ran a Linux source-snapshot microbenchmark on generated 1,048-byte source files (median of three reads): **9.43 ms for 100 files** and **37.06 ms for 1,000 files**. These measure only a snapshot invocation on that runner, not total Stop-hook overhead. Performance on large or different filesystems may vary significantly.
 
+## Controlled Stop-hook replay (Claude Code and Codex)
+
+Run `npm run benchmark:replay`. This executes the actual `runHook()` entry point against 25 labeled, deterministic transcript scenarios: 19 in Claude Code's format and 6 in Codex's format. The labels are authored tests, **not independent human judgments**. The comparator is a deliberately minimal hook that checks whether *any* test previously passed in the transcript, without considering a later edit or failed run.
+
+| Classification | Agent-polygraph | Any-pass baseline |
+|---|---:|---:|
+| Correctly blocked unbacked claims | 14 / 14 | 7 / 14 |
+| Missed unbacked claims | 0 | 7 |
+| Incorrectly blocked backed/non-claim cases | 0 / 11 | 0 / 11 |
+| Correctly allowed backed/non-claim cases | 11 / 11 | 11 / 11 |
+
+The result was reproduced in the [four-version Node CI run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41248127899) (Node.js 18, 20, 22, 24). The advantage is **test freshness**: a simple "some test passed" rule misses an edit after a passing run or a newer failing run. The tool also deliberately leaves scenarios without clear code work inconclusive.
+
+These results demonstrate better *coverage on this constructed suite* than the minimal comparator, **not** 100% accuracy in the wild, not superiority over a real always-rerun test hook, and not superiority to specialized competitors. Since cases were designed with agent-polygraph's behavior in mind, they have strong selection bias. The retrospective public-data workload projection above is a separate experiment.
+
 ## What would establish a stronger claim?
 
 A comparative, externally labeled study needs the **same frozen sessions or tasks** for all policies, labels independently reviewed by someone who did not write the verifier, and separate reporting of:
