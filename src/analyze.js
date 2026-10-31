@@ -1,4 +1,5 @@
 import os from "node:os";
+import fs from "node:fs";
 import path from "node:path";
 import {
   isTestCommand,
@@ -364,7 +365,16 @@ export function analyzeSession(session) {
             uncertain = false;
             s.evidence.snapshot = (s.evidence.snapshot || 0) + 1;
             // the whole checkout is compared; only changes where the test ran count, as for edits
-            const code = changed.filter((p) => isCodePath(p) && !SCRATCH_NAME.test(p.split("/").pop()) && within(path.posix.join(norm(ref.tree.root), p), ref.dir));
+            // Git may report the canonical checkout path even when the transcript
+            // used a symlinked directory (/var vs /private/var on macOS), and
+            // Windows requires native path joining for drive-letter roots.
+            const canonical = (p) => {
+              try { return fs.realpathSync.native(p); } catch { return p; }
+            };
+            const canonicalRoot = canonical(ref.tree.root);
+            const canonicalDir = canonical(ref.dir || session.cwd || ref.tree.root);
+            const code = changed.filter((p) => isCodePath(p) && !SCRATCH_NAME.test(p.split("/").pop()) &&
+              within(path.resolve(canonicalRoot, ...p.split("/")), canonicalDir));
             if (code.length) staleEdit = { path: code[0], snapshot: true };
           }
         }
