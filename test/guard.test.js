@@ -67,3 +67,49 @@ test("install is idempotent and uninstall keeps other hooks", () => {
   const after = JSON.parse(fs.readFileSync(settings, "utf8"));
   assert.deepEqual(after, { model: "x", hooks: { Stop: [{ hooks: [{ type: "command", command: "say done" }] }] } });
 });
+
+test("plugin hook steps aside when settings already have a guard hook", async () => {
+  const { settingsHasGuard } = await import("../src/guard.js");
+  const home = dir(); // stands in for ~/.claude
+  const project = dir();
+  const sub = path.join(project, "packages", "app");
+  fs.mkdirSync(sub, { recursive: true });
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = home;
+  try {
+    const file = transcript([user(0, "fix x"), ...run, ...edit, say(4, "Done. All tests pass.")]);
+    const payload = JSON.stringify({ transcript_path: file, cwd: sub });
+    assert.equal(settingsHasGuard(sub), false);
+    assert.equal((await runHook(payload, { plugin: true })).decision, "block");
+
+    // a project-level install above cwd counts
+    install({ agents: ["claude"], cwd: project, command: "agent-polygraph guard" });
+    assert.equal(settingsHasGuard(sub), true);
+    assert.equal(await runHook(payload, { plugin: true }), null);
+    assert.equal((await runHook(payload)).decision, "block"); // the settings hook itself still runs
+
+    // so does a user-level one; a record hook doesn't
+    uninstall({ agents: ["claude"], cwd: project });
+    install({ agents: ["claude"], cwd: project, command: "agent-polygraph record" });
+    assert.equal(settingsHasGuard(sub), false);
+    fs.writeFileSync(path.join(home, "settings.json"), JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "npx -y agent-polygraph@0.1.0 guard" }] }] } }));
+    assert.equal(settingsHasGuard(sub), true);
+  } finally {
+    if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = prev;
+  }
+});
+
+test("Claude Code plugin manifests match the package", () => {
+  const root = new URL("../", import.meta.url);
+  const read = (p) => JSON.parse(fs.readFileSync(new URL(p, root), "utf8"));
+  const pkg = read("package.json");
+  const plugin = read(".claude-plugin/plugin.json");
+  const market = read(".claude-plugin/marketplace.json");
+  assert.equal(plugin.name, pkg.name);
+  assert.equal(plugin.version, pkg.version);
+  assert.deepEqual(market.plugins.map((p) => [p.name, p.source]), [[pkg.name, "./"]]);
+  const cmd = read("hooks/hooks.json").hooks.Stop[0].hooks[0].command;
+  assert.match(cmd, /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/polygraph\.js" guard --from-plugin$/);
+  assert.ok(fs.existsSync(new URL("bin/polygraph.js", root)));
+});

@@ -111,6 +111,7 @@ async function guard(argv) {
       global: { type: "boolean" },
       agent: { type: "string", multiple: true },
       command: { type: "string" },
+      "from-plugin": { type: "boolean" },
     },
   });
   const { runHook, install, uninstall } = await import("../src/guard.js");
@@ -119,7 +120,7 @@ async function guard(argv) {
     try {
       const chunks = [];
       for await (const c of process.stdin) chunks.push(c);
-      const out = await runHook(Buffer.concat(chunks).toString("utf8"));
+      const out = await runHook(Buffer.concat(chunks).toString("utf8"), { plugin: values["from-plugin"] });
       if (out) process.stdout.write(JSON.stringify(out));
     } catch (e) {
       if (process.env.POLYGRAPH_DEBUG) console.error(e);

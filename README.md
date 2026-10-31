@@ -71,6 +71,18 @@ It blocks at most once per stop, looks only at the final message (so a claim the
 
 I tested it with both agents by having them edit code after a test run and then claim the tests pass. Both were stopped, reran `npm test` and reported the failure. Codex needs one extra step: it only runs hooks you have approved, and only reads a project's `.codex/` folder if you trust it. After installing, open `codex` in the project once, trust the folder and approve the hook.
 
+### As a Claude Code plugin
+
+In Claude Code you can install the guard as a plugin instead:
+
+```
+/plugin install agent-polygraph --marketplace EleChon-pixel/agent-polygraph
+```
+
+On Claude Code older than 2.1.275, run `/plugin marketplace add EleChon-pixel/agent-polygraph` first, then `/plugin install agent-polygraph@agent-polygraph`.
+
+The plugin runs the same Stop hook from its own copy, so nothing is downloaded when the agent stops, and it adds `/agent-polygraph:check` for the report (it takes the same options, for example `/agent-polygraph:check --since 30d`). If you also installed the hook with `guard --install`, the plugin's copy stays quiet so the agent isn't sent back twice. The plugin doesn't include `record`; turn that on separately if you want it.
+
 ## Evidence the logs don't have
 
 Some things never show up in the logs: tests you ran yourself in another terminal, CI results, and files changed by a script that builds their names at run time. Two optional extras cover them.

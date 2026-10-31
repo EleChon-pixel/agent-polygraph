@@ -14,7 +14,7 @@ import { applyRecords } from "./record.js";
 
 
 /** Hook entry point: read the Stop payload on stdin, maybe print a block decision. */
-export async function runHook(stdinText) {
+export async function runHook(stdinText, { plugin = false } = {}) {
   let payload;
   try {
     payload = JSON.parse(stdinText || "{}");
@@ -22,6 +22,9 @@ export async function runHook(stdinText) {
     return null;
   }
   if (payload.stop_hook_active) return null; // we already sent the agent back once
+  // The Claude Code plugin's hook steps aside when `guard --install` put one in settings
+  // too, so the agent isn't sent back twice with the same message.
+  if (plugin && settingsHasGuard(payload.cwd)) return null;
   const transcript = payload.transcript_path;
   if (!transcript || !fs.existsSync(transcript)) return null;
 
@@ -79,6 +82,23 @@ function reasonFor(d) {
     `agent-polygraph: your final message says "${d.claim}", but ${why}.`,
     "Run the relevant tests now and report the actual result. If they can't be run, say so instead of claiming they pass.",
   ].join(" ");
+}
+
+/** Is a guard hook installed in Claude Code settings that apply to `cwd` (user or project)? */
+export function settingsHasGuard(cwd, home = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude")) {
+  const files = [path.join(home, "settings.json"), path.join(home, "settings.local.json")];
+  // Claude Code reads project settings from where it was started, which may be above cwd
+  for (let d = cwd ? path.resolve(cwd) : null; d; d = path.dirname(d) === d ? null : path.dirname(d)) {
+    files.push(path.join(d, ".claude", "settings.json"), path.join(d, ".claude", "settings.local.json"));
+  }
+  return files.some((file) => {
+    try {
+      const stop = JSON.parse(fs.readFileSync(file, "utf8")).hooks?.Stop;
+      return Array.isArray(stop) && stop.some((g) => (g.hooks || []).some((h) => isOurHook(h, "guard")));
+    } catch {
+      return false;
+    }
+  });
 }
 
 function sniffCodex(file) {

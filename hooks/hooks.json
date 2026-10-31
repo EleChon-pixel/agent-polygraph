@@ -1,0 +1,16 @@
+{
+  "description": "agent-polygraph guard: checks a final \"tests pass\" claim against the session before Claude stops",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/polygraph.js\" guard --from-plugin",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "agent-polygraph",
+  "version": "0.1.0",
+  "description": "Sends Claude back once when its final message says tests pass but the session shows no passing run after the last edit. Adds /agent-polygraph:check for a report on your past sessions. Runs locally, nothing is uploaded.",
+  "author": {
+    "name": "Eleftherios Chondros",
+    "url": "https://github.com/EleChon-pixel"
+  },
+  "homepage": "https://github.com/EleChon-pixel/agent-polygraph#readme",
+  "repository": "https://github.com/EleChon-pixel/agent-polygraph",
+  "license": "MIT",
+  "keywords": ["testing", "hooks", "audit", "coding-agents"]
+}

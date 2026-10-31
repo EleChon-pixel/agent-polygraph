@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agent-polygraph",
+  "description": "agent-polygraph: check coding agents' \"tests pass\" claims against what actually ran.",
+  "owner": {
+    "name": "Eleftherios Chondros",
+    "url": "https://github.com/EleChon-pixel"
+  },
+  "plugins": [
+    {
+      "name": "agent-polygraph",
+      "description": "Sends Claude back once when it says tests pass without a passing run after its last edit, plus /agent-polygraph:check for a report on past sessions.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
