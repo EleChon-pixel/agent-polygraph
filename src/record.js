@@ -174,6 +174,17 @@ function sourceFingerprint(root, name, key) {
     const after = fs.fstatSync(fd, { bigint: true });
     if (before.size !== after.size || before.mtimeNs !== after.mtimeNs ||
         before.ctimeNs !== after.ctimeNs || bytes.length !== Number(before.size)) return null;
+    // A path replacement during the read must remain inconclusive.
+    const current = fs.lstatSync(file, { bigint: true });
+    if (!current.isFile() || current.dev !== after.dev || current.ino !== after.ino ||
+        current.mtimeNs !== after.mtimeNs || current.ctimeNs !== after.ctimeNs) return null;
+    // Linux exposes the opened descriptor's actual path. Reject a race that
+    // redirected a parent directory outside the checkout after safeParents().
+    if (process.platform === "linux") {
+      const opened = fs.realpathSync(`/proc/self/fd/${fd}`);
+      const relative = path.relative(fs.realpathSync(root), opened);
+      if (relative === ".." || relative.startsWith(".." + path.sep) || path.isAbsolute(relative)) return null;
+    }
     return { bytes: bytes.length, digest: crypto.createHmac("sha256", key).update(bytes).digest("hex") };
   } finally {
     fs.closeSync(fd);
