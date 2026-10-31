@@ -6,16 +6,16 @@ Your coding agent said "all tests pass". Did a test pass after its last edit?
 
 agent-polygraph is an audit of your past sessions. It reads the Claude Code and Codex session logs already on your machine and checks every "tests pass" claim against what ran: was there a passing test run after the agent's last code edit? It tells you how often your agents claimed something they hadn't verified, and shows the evidence for each case. No setup, no API key, nothing uploaded.
 
-It reads logs; it never runs your tests. An unbacked claim isn't necessarily false, only unverified: nobody reran the tests at that point, so whether they would have passed is unknown.
+The audit and guard **read evidence; they do not execute tests**. A flagged claim is not proof the code is wrong: it means the available evidence does not support the claim at that point. If you want automatic test execution, use a separate test-running hook or CI.
 
 ```sh
 npx agent-polygraph          # your own sessions
 npx agent-polygraph --demo   # generated sample sessions
 ```
 
-> This is a beta. It has been tested on my own logs and on public Claude Code sessions ([evaluation](docs/evaluation.md)). If a verdict looks wrong, please [open an issue](https://github.com/EleChon-pixel/agent-polygraph/issues/new/choose) with the redacted example from the report. Each one becomes a regression test.
+> **Beta / evidence limitations:** The parser has been evaluated on the author's own sessions and public Claude Code traces ([evaluation](docs/evaluation.md)). Controlled replays and real executed tests exist, but **independent, blinded human-validated accuracy has not been established**. If you report a wrong verdict, [open an issue](https://github.com/EleChon-pixel/agent-polygraph/issues/new/choose) with a *manually redacted* example—never upload an unreviewed raw session log.
 
-My own sessions, July to October 2026:
+Historical example from the author's sessions, July–October 2026 (not a representative benchmark or a current-user measurement):
 
 ```
 agent-polygraph  32 working sessions · Jul 30 – Oct 31, 2026 · 11.0s
@@ -45,7 +45,7 @@ Where the time went
 
 Under the tables it prints the latest examples: what the agent claimed, the last test command and its result, what was edited afterwards, and the session file, so you can check it yourself.
 
-Agent polygraph is more selective than a rerun-at-every-stop hook, but cannot detect unclaimed breakage. A reproducible session-log cost projection is in [docs/benchmark.md](docs/benchmark.md). The [executed test-policy comparison](docs/live-evaluation.md) reports real added test processes, timings, and missed failing suites. This is evidence of a useful efficiency-versus-coverage trade-off, **not** independently verified correctness or a claim that a selective guard is a substitute for running tests.
+**What the benchmarks actually show:** agent-polygraph detects stale test claims more reliably than a *simple any-prior-pass rule* in [25 authored replay scenarios](docs/benchmark.md) (14/14 unbacked claims versus 7/14). In [12 instrumented projects using real test executions](docs/live-evaluation.md), its selective guard requested **5** additional tests and detected **3 of 7** failing final suites; rerunning the full suite every time required **12** additional tests and detected **all 7**. That is an efficiency-versus-coverage trade-off, **not** evidence that the guard improves overall defect detection. [Public-session workload projections](docs/benchmark.md) are separate from actual executed tests. The independently labeled human study is [still open](https://github.com/EleChon-pixel/agent-polygraph/issues/3).
 
 ## Share your numbers
 
@@ -104,7 +104,7 @@ Some things never show up in the logs: tests you ran yourself in another termina
 
 ```sh
 npx agent-polygraph record --install           # this project; add --global for all of them
-npx agent-polygraph record --install --shell   # your own terminals
+agent-polygraph record --install --shell       # your own terminals (requires a persistent install)
 npx agent-polygraph --ci                       # GitHub Actions (online)
 ```
 
@@ -153,23 +153,26 @@ Everything is deterministic pattern matching over the logs. There is no LLM invo
 
 The rules are in [`src/classify.js`](src/classify.js) and the tests in [`test/`](test), including a labelled set of claim and non-claim sentences ([`test/claims.corpus.test.js`](test/claims.corpus.test.js)). A false positive or a missed claim makes a good [issue](https://github.com/EleChon-pixel/agent-polygraph/issues/new/choose); include the redacted sentence and it goes into that set.
 
-## Accuracy
+## Validation and accuracy
 
-I checked it by hand on my own logs, several hundred claims across Claude Code and Codex. Of 25 detected claims picked at random, about 95% were real claims. About 10% of real claims are missed, judging by a sample of sentences that mention tests passing but weren't detected; most of those also mention an unrelated failure ("passes alone, failed in the full run"). I traced every flag back through its session. Almost all were real unbacked claims, and the rest were borderline partial claims.
+The historical analysis of the author's own Claude Code and Codex sessions includes manual spot checks of claims and flagged evidence. In a small, author-selected review, approximately 95% of 25 detected claim candidates were genuine claims, and a separate sample suggested some real claims were missed. **These are preliminary, author-reviewed observations, not externally validated precision or recall.** See the [original evaluation protocol](docs/evaluation.md).
 
-On other people's sessions (26 public Claude Code sessions, mostly from [Trace Commons](https://huggingface.co/datasets/trace-commons/agent-traces)) every verdict was reviewed by hand. The first run found parser gaps, such as Windows PowerShell sessions, custom test runners and Gradle, which are now fixed. The result is 89% backed. All 24 backed verdicts match the output the agent saw, and of the 3 stale flags, 1 is confirmed and 2 are likely. [docs/evaluation.md](docs/evaluation.md) has the method, every fix and a one-command reproduction.
+The public Claude Code evaluation reviewed 26 parsed sessions and identified 24 backed claims and three stale findings (one confirmed and two considered likely). It is useful for parser regression coverage but does **not** establish accuracy on an independent, representative population. A separately pinned, redacted holdout audit inspected 103 public sessions; under its conservative automated reference rules, **no eligible claims were found**, so **no holdout accuracy percentage was produced**. Additional dataset limitations and exact counts are documented in [live-evaluation.md](docs/live-evaluation.md).
 
-An outside review found ten ways a verdict could go wrong (a later result backing an earlier claim, one output shared by several commands, failed edits counted as changes). They are fixed and kept as tests in [`test/review.test.js`](test/review.test.js).
+Two reproducible controlled experiments test narrower propositions:
 
-There was no public Codex data, so Codex has only been checked on my logs. Your phrasing and tools will differ from mine. Treat the numbers as a strong hint, and open the session file before relying on any one verdict.
+- [Stop-hook replay](docs/benchmark.md): 25 authored Claude Code/Codex scenarios. Agent-polygraph correctly blocked 14/14 labeled unbacked claims versus 7/14 for a naive “any test passed earlier” hook, with zero false blocks in these selected cases.
+- [Executed-test policy comparison](docs/live-evaluation.md): 12 authored scenarios with actual Node.js test executions. The selective guard required five extra test executions and detected three of seven failing final suites; running the full suite after every response required 12 executions and detected all seven.
+
+The replay labels and scenarios were constructed by the project authors. The guard cannot discover failures the agent never claimed away, or infer whether a narrow passing test establishes a full-suite pass. **An independent, blinded human evaluation is still needed.** The [review issue](https://github.com/EleChon-pixel/agent-polygraph/issues/3) describes the protocol; `scripts/blind-review.mjs` prepares prediction-free review packets. No raw private session logs should be shared with reviewers or issues without permission and redaction.
 
 ## Limits
 
-These are the gaps that remain. `record` and `--ci` close most of them once you turn them on.
+These are the gaps that remain. `record` and `--ci` can reduce some of them, but neither replaces running tests or provides independent proof of correctness.
 
 - Tests outside the logs. Tests the agent ran, test runs Claude Code recorded from hooks, commands you typed with `!` in Claude Code, and test output you pasted into the chat all count. So do your own bash and zsh runs with `record --shell`, and GitHub Actions runs on pushed commits with `--ci`. Other shells (fish, PowerShell, an IDE's test button), other CI services, and CI runs on commits the session never printed are still invisible.
 - "The full suite passes" is compared with the latest run about as large as the largest one in that folder, using the counts the runner printed. If no run printed a count, it's compared with the latest run, which may have been narrower. Claims that name no count, test file or full suite are compared with the latest run.
-- Output with no summary. Codex keeps each command's full output. Claude Code saves output that is too long for the transcript to a file, which is read as long as it exists, and `record` keeps the full result too. A run abandoned before printing a result leaves nothing to read.
+- Output with no summary. Codex keeps each command's full output. Claude Code may save long output to a separate file that the analyzer reads if it still exists. New `record` entries retain **parsed test outcomes and pass counts, not raw test output**. A run abandoned before printing a result leaves nothing to read.
 - Files a script names at run time. Without `record` these make a claim "couldn't tell", never "backed". `record` settles them, but only in git checkouts and only for sessions after it was installed.
 - New agent versions can change the log format. Supported: Claude Code 2.x (Bash and PowerShell tools; Linux, macOS and Windows paths) and Codex CLI. The report lists the versions it read, warns about newer ones, and counts files it couldn't parse instead of dropping them silently.
 - Unbacked is not the same as false. "Code edited after the last run" means the claim wasn't verified after the edit; the edit may have been harmless, such as a comment or a test file. The report can't tell whether the tests would have passed, because nobody ran them at that point.
@@ -191,16 +194,31 @@ These are the gaps that remain. `record` and `--ci` close most of them once you 
 --codex-dir <dir>   Codex sessions dir (default ~/.codex/sessions, or $CODEX_HOME/sessions)
 ```
 
+## Running the repository version
+
+The GitHub source and the npm-distributed package are different delivery paths. To try the **current `main` code** without assuming npm is up to date:
+
+```sh
+git clone https://github.com/EleChon-pixel/agent-polygraph.git
+cd agent-polygraph
+node bin/polygraph.js --demo
+npm test
+npm run benchmark:replay
+npm run benchmark:live
+```
+
+Before distributing a new version, verify `npm view agent-polygraph version`, the published tarball (`npm pack --dry-run`), and that a clean install really contains the latest privacy and guard fixes. The repository currently declares version `0.1.0`; a green GitHub Actions badge does **not** prove that `npx agent-polygraph` executes the latest `main` code.
+
 ## Privacy
 
 New recordings intentionally minimize local data. The agent hook stores a keyed command fingerprint, the runner's result and optional fingerprints of source files. It does **not** save raw command text, test output or copies of repository files in its snapshot store. The shell integration saves only a recognized test-runner category, time, folder and exit code. Local record files, key and snapshot metadata are owner-only on Unix. The secret fingerprint key is stored in `$AGENT_POLYGRAPH_HOME/record-key` (default `~/.agent-polygraph/record-key`).
 
 **Existing installations:** records made before this update may still include full commands, and older versions may have created a local Git object store with duplicate source contents. Upgrading does **not** remove those files. After reviewing whether you still need the historical evidence, uninstall recording and manually remove the old `~/.agent-polygraph/records` and `~/.agent-polygraph/objects` directories. Removing historical records means those sessions will lose their supplemental evidence; the original Claude Code/Codex transcripts remain untouched. Do not delete `record-key` while retaining version 2 records that rely on matching fingerprints.
 
-The local session transcripts remain owned by Claude Code/Codex and can themselves contain confidential data. The terminal report and `--json` may quote transcript text and paths; do not share them without review. The `--html` report intentionally excludes excerpts, prompts, commands and paths. The recorder only supports bounded source-file snapshots in Git checkouts and skips symbolic links; when evidence cannot be read it must stay inconclusive rather than certifying a pass. New source-file fingerprints include relative filenames and are not an anonymization guarantee.
+Stored fingerprints are **not** a guarantee of anonymity: recording metadata includes timestamps, working directories and relative source-file paths, and existing v1 records may still contain raw commands. The original Claude Code/Codex transcripts can also contain secrets and confidential data. The terminal report and `--json` may quote transcript text and paths; do not share them without review. The `--html` report intentionally excludes excerpts, prompts, commands and paths. The recorder only supports bounded source-file snapshots in Git checkouts and skips symbolic links; when evidence cannot be read it must stay inconclusive rather than certifying a pass. New source-file fingerprints include relative filenames and are not an anonymization guarantee.
 
 
-It reads files and works offline. The exceptions are all opt-in:
+It reads files and works offline. These operations are opt-in:
 
 - `guard` and `record` edit the hook config files they print when you install or uninstall them, and `record --shell` adds or removes one marked line in `~/.bashrc` and `~/.zshrc`.
 - `record` saves snapshots and logs in `~/.agent-polygraph`.
