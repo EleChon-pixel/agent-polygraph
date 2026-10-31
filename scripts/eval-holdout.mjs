@@ -11,18 +11,18 @@ import crypto from "node:crypto";
 import * as claude from "../src/sources/claude.js";
 import { analyzeSession } from "../src/analyze.js";
 
-const DATASET = process.env.HOLDOUT_DATASET || "crispwisp/wisp-claude-code-sessions";
+const DATASET = process.env.HOLDOUT_DATASET || "SALT-NLP/SWE-chat";
 const PREFIX = process.env.HOLDOUT_PREFIX || "transcripts/";
 const EXCLUDE_REV = process.env.HOLDOUT_EXCLUDE_REV ?? "";
 const pin = process.env.HOLDOUT_REV || "main";
-const MAX_FILES = 100;
+const MAX_FILES = 250;
 const MAX_BYTES = 2_000_000;
-const MAX_TOTAL = 30_000_000;
+const MAX_TOTAL = 50_000_000;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "apg-holdout-"));
 const fail = (m) => { throw Error("holdout: " + m); };
 const passPattern = /(?:\b\d+\s+passed\b(?:(?!failed).)*\b0\s+failed\b|\b\d+\s+passed in\b|#\s*pass\s+[1-9]\d*\s*(?:\r?\n|$)[\s\S]*?#\s*fail\s+0\b|ℹ\s*pass\s+[1-9]\d*\s*(?:\r?\n|$)[\s\S]*?ℹ\s*fail\s+0\b)/i;
 const failurePattern = /(?:\b[1-9]\d*\s+failed\b|#\s*fail\s+[1-9]\d*\b|ℹ\s*fail\s+[1-9]\d*\b|\bFAILURES\b)/i;
-const claimPattern = /\ball\s+tests?\s+(?:now\s+)?pass(?:ed)?\b/i;
+const claimPattern = /(?:\ball\s+(?:\d+\s+)?tests?\s+(?:now\s+)?pass(?:ed)?\b|\b\d+\s+tests?\s+pass(?:ed)?\b)/i;
 const exactTest = /^(?:npm\s+test|pytest(?:\s+-q)?|python(?:3)?\s+-m\s+pytest(?:\s+-q)?|node\s+--test(?:\s+[^;&|]+)?|go\s+test\s+\.\/\.\.\.)\s*$/;
 const extract = (c) => typeof c === "string" ? c : Array.isArray(c) ? c.filter(x=>x?.type === "text" && typeof x.text === "string").map(x=>x.text).join("\n") : "";
 function independentlyLabel(recs) {
