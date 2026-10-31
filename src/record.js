@@ -1,11 +1,9 @@
 // `agent-polygraph record`: optional evidence the session logs don't carry.
 //
-// - A PostToolUse hook (Claude Code and Codex). After a test command or a command that may
-//   write files, it saves a snapshot of the working tree (a git tree id, stored in
-//   agent-polygraph's own object store so your repository is never written to) and, for
-//   test commands, the outcome the runner printed in full. With snapshots, a change the
-//   logs can't follow ("a script that computes its file names") is settled by comparing the
-//   tree after the test run with the tree before the claim.
+// - A PostToolUse hook (Claude Code and Codex). After a test or potential write,
+//   it records bounded, keyed source-file fingerprints and test outcomes.
+//   It does not store raw commands, test output, source contents or Git objects.
+//   Comparing snapshots can resolve changes not identifiable from shell text.
 // - Shell integration (bash, zsh): test commands you run in your own terminals are logged
 //   with their folder, start and end time and exit code. No output is kept.
 //
