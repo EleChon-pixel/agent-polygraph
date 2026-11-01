@@ -355,6 +355,11 @@ export function analyzeSession(session) {
         // "the full suite passes" to the latest run as large as the session's full runs.
         // Without such a hint, the latest run.
         const ref = referencedRun(claim, runs, lastTest) || lastTest;
+        // A passing targeted test cannot, by itself, verify an explicit
+        // "full suite passes" claim. When scope isn't established, abstain.
+        const focusedOnly = claimsFullSuite(claim) && ref &&
+          !(runs.get(ref.i)?.full ?? ref.full) &&
+          ![...runs.values()].some((r) => r.full && sameDir(r.dir, ref.dir));
         let staleEdit = ref && codeEdits.findLast((e) => e.i > ref.i && within(e.abs, ref.dir));
         // a change we couldn't follow, settled by comparing `record` snapshots of the
         // working tree after the run and after the change
@@ -384,6 +389,7 @@ export function analyzeSession(session) {
           verdict = pendingTest >= 0 || !lastCodeEdit ? "unknown" : "no-run";
           if (verdict === "unknown") why = pendingTest >= 0 ? "test still running" : "no code work in session";
         } else if (staleEdit) verdict = "stale";
+        else if (focusedOnly) [verdict, why] = ["unknown", "no full-suite test run observed"];
         else if (uncertain) [verdict, why] = ["unknown", "unresolved file change after the run"];
         // a subagent's failing run in its own worktree says little about the main checkout
         else if (ref.outcome === "fail") [verdict, why] = ref.sub ? ["unknown", "subagent run failed"] : ["failed"];
@@ -501,7 +507,12 @@ function referencedRun(claim, runs, latest) {
  * size. Judged by the counts runners printed, never by the command (too unreliable).
  */
 function fullSuiteRun(runs, latest) {
-  if (!latest || latest.count == null) return null;
+  if (!latest) return null;
+  // Prefer command-level evidence of full-suite coverage when we have it.
+  // This works even if test output omitted a reliable pass count.
+  const explicit = [...runs.values()].filter((r) => r.full && sameDir(r.dir, latest.dir));
+  if (explicit.length) return explicit.reduce((a, b) => (b.i > a.i ? b : a));
+  if (latest.count == null) return null;
   const same = [...runs.values()].filter((r) => r.count != null && !r.external && sameDir(r.dir, latest.dir));
   const max = Math.max(...same.map((r) => r.count));
   // a different command, and under half the size: a focused run, not the suite shrinking
