@@ -48,6 +48,17 @@ try {
     throw Error("Published CLI demo failed");
   if (!fs.existsSync(path.join(temp, "node_modules", pkg.name, "src", "safe-config.js")))
     throw Error("Published package is missing the security-hardened settings module");
+  const isNewRelease = expected.split(".").map(Number)[0] > 0 ||
+    Number(expected.split(".")[1]) >= 3;
+  if (isNewRelease) {
+    const doctor = exec(process.execPath, [cli, "doctor", "--agent", "claude",
+      "--claude-dir", path.join(temp, "missing-claude")]);
+    if (!doctor.includes("agent-polygraph doctor"))
+      throw Error("Published doctor command did not work");
+    const explain = exec(process.execPath, [cli, "explain", "--demo", "--limit", "2"]);
+    if (!explain.includes("agent-polygraph explain"))
+      throw Error("Published explain command did not work");
+  }
   const publishedReadme = fs.readFileSync(path.join(temp, "node_modules", pkg.name, "README.md"), "utf8");
   const sourceReadme = fs.readFileSync(path.join(root, "README.md"), "utf8");
   if (publishedReadme !== sourceReadme)
@@ -58,7 +69,8 @@ try {
     package: pkg.name, publicLatestVersion: latest.version,
     sourceRepositoryVerified: true, sha512IntegrityPresent: true,
     installedFromPublicNpm: true, cliVersionVerified: true, demoPassed: true,
-    safeConfigIncluded: true, correctedReadmeVerified: true
+    safeConfigIncluded: true, correctedReadmeVerified: true,
+    explainAndDoctorVerified: isNewRelease
   }, null, 2));
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
