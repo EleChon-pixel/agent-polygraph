@@ -41,12 +41,16 @@ npm test
 node scripts/release-check.mjs
 ```
 
+## Pending README-only patch (v0.3.1)
+
+The publicly released `0.3.0` tarball cannot be modified in place. The `0.3.1` source on `main` corrects outdated version and feature-availability language in the README; see [v0.3.1 release notes](releases/v0.3.1.md). Publish this patch only after CI and npm package readiness pass. Before approval, `npm latest` correctly remains at `0.3.0`.
+
 ## Stage and approve a future version
 
 For a **new**, not-yet-published version, update `package.json` and `.claude-plugin/plugin.json` to the same version, commit the changes to `main`, and confirm CI is green. Then:
 
 1. Open [GitHub Actions → Stage npm release (trusted publisher)](https://github.com/EleChon-pixel/agent-polygraph/actions/workflows/publish-npm.yml).
-2. Choose **Run workflow**, branch `main`, and enter a **new version** (both `0.2.0` and `0.2.1` are already published).
+2. Choose **Run workflow**, branch `main`, and enter an **unpublished version** matching `package.json` (for this README correction, `0.3.1`).
 3. The workflow validates the package and uses `npm stage publish` with short-lived GitHub OIDC credentials. This **stages** the new tarball, but the new version remains unavailable to the public until the maintainer approves it.
 4. On npmjs.com, open the **Staged Packages** tab, review the new version and approve it with your account's **2FA**. Wait for npm's malware scan to finish if approval is unavailable.
 5. Confirm `npm view agent-polygraph version` reports the new version, then test `npx --yes agent-polygraph@<new-version> --demo` on a clean machine. Only after successful npm publication should the README advertise that new version as live.
