@@ -10,6 +10,15 @@ import { renderHtml } from "../src/report/html.js";
 
 const { version } = createRequire(import.meta.url)("../package.json");
 
+if (process.argv[2] === "explain") {
+  await explainCommand(process.argv.slice(3));
+  process.exit(0);
+}
+if (process.argv[2] === "doctor") {
+  await doctorCommand(process.argv.slice(3));
+  process.exit(0);
+}
+
 if (process.argv[2] === "guard") {
   await guard(process.argv.slice(3));
   process.exit(0);
@@ -43,6 +52,14 @@ Usage: npx agent-polygraph [options]
   -h, --help          show this help
   -v, --version       show the version
 
+Investigate evidence (read-only):
+  npx agent-polygraph explain [--limit 10] [--since 7d] [--project name]
+      --session <prefix>  filter claims by session ID prefix
+      --agent claude|codex  select agent (repeatable)
+      --ci                  optionally enrich with GitHub Actions evidence (network)
+  npx agent-polygraph doctor [--agent claude|codex]
+      Check local transcripts, hook configuration and recorder permissions.
+
 Guard (stop unbacked "tests pass" claims as they happen):
 
   npx agent-polygraph guard --install            add a Stop hook to this project (.claude/, .codex/)
@@ -58,6 +75,69 @@ Record (more evidence than the logs carry; stays on this machine):
                                                     (bash, zsh; time, folder, exit code; no output)
   npx agent-polygraph record --uninstall [--global] [--shell]
 `;
+
+async function explainCommand(argv) {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      since: { type: "string" },
+      project: { type: "string" },
+      session: { type: "string" },
+      agent: { type: "string", multiple: true },
+      limit: { type: "string", default: "10" },
+      ci: { type: "boolean" },
+      demo: { type: "boolean" },
+      "claude-dir": { type: "string" },
+      "codex-dir": { type: "string" },
+    },
+  });
+  const agents = values.agent?.map((s) => s.toLowerCase());
+  if (agents?.some((a) => !["claude", "codex"].includes(a))) throw Error("--agent must be claude or codex");
+  const limit = Number(values.limit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1000) throw Error("--limit must be an integer from 1 to 1000");
+  const since = parseSince(values.since);
+  if (values.since && !since) throw Error("--since must be a date or age such as 7d");
+  let roots = { claude: values["claude-dir"], codex: values["codex-dir"] };
+  let demoDir = null;
+  if (values.demo) {
+    const { makeDemo } = await import("../src/demo.js");
+    const d = makeDemo();
+    demoDir = d.root;
+    roots = { claude: d.claudeDir, codex: d.codexDir };
+  }
+  let ci;
+  if (values.ci && !values.demo) {
+    const { checkGh, makeCi } = await import("../src/ci.js");
+    await checkGh();
+    ci = makeCi();
+  }
+  try {
+    const sessions = await scan({
+      agents, since, project: values.project, roots, records: !values.demo,
+      enrich: ci?.enrich,
+    });
+    const { renderExplanations } = await import("../src/explain.js");
+    console.log(renderExplanations(sessions, { limit, sessionId: values.session }));
+  } finally {
+    if (demoDir) fs.rmSync(demoDir, { recursive: true, force: true });
+  }
+}
+
+async function doctorCommand(argv) {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      agent: { type: "string", multiple: true },
+      "claude-dir": { type: "string" },
+      "codex-dir": { type: "string" },
+    },
+  });
+  const agents = values.agent?.map((s) => s.toLowerCase()) || ["claude", "codex"];
+  if (agents.some((a) => !["claude", "codex"].includes(a))) throw Error("--agent must be claude or codex");
+  const { diagnose, renderDoctor } = await import("../src/doctor.js");
+  const checks = await diagnose({ agents, roots: { claude: values["claude-dir"], codex: values["codex-dir"] } });
+  console.log(renderDoctor(checks));
+}
 
 async function record(argv) {
   const { values } = parseArgs({
