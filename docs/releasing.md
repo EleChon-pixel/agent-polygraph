@@ -1,10 +1,10 @@
 # Publishing agent-polygraph to npm
 
-**Published:** `agent-polygraph@0.2.1` is live as npm's `latest` release. The [0.2.1 staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254157812) used GitHub OIDC with signed provenance, followed by maintainer approval. The [public npm install verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254304819) confirmed **0.2.1** as `latest`, downloaded and ran the published CLI, and verified that its bundled README exactly matches the corrected version-neutral GitHub README. The older, immutable 0.2.0 tarball retains the earlier prerelease notice; do not attempt to overwrite it. A GitHub commit alone does not publish a new npm release.
+**Published:** `agent-polygraph@0.3.0` is live as npm's `latest` release; [public installation and both new commands were verified](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41256795869). Earlier `0.2.1` was a documentation-only patch. The [0.2.1 staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254157812) used GitHub OIDC with signed provenance, followed by maintainer approval. The [public npm install verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254304819) confirmed **0.2.1** as `latest`, downloaded and ran the published CLI, and verified that its bundled README exactly matches the corrected version-neutral GitHub README. The older, immutable 0.2.0 tarball retains the earlier prerelease notice; do not attempt to overwrite it. A GitHub commit alone does not publish a new npm release.
 
-## Unpublished v0.3.0 source
+## Published v0.3.0
 
-GitHub `main` currently prepares **0.3.0** with conservative CI test evidence, stronger full-suite claim handling and read-only `explain`/`doctor` commands. The published npm `latest` remains **0.2.1** until the maintainer stages and approves the new package. Read [v0.3.0 release notes](releases/v0.3.0.md) and wait for the main CI matrix and npm package readiness to pass before manually running `publish-npm.yml` with version `0.3.0`. Approval with npm 2FA is separate. Do not retag old releases or publish directly.
+The npm `latest` release is now **0.3.0**, with conservative CI test evidence, stronger full-suite claim handling and read-only `explain`/`doctor` commands. The [trusted-publisher staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41256482642) used GitHub OIDC and signed provenance; after maintainer 2FA approval, the [public npm verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41256795869) installed the package from npm and successfully exercised both new commands. The source commit for the published tarball is `8f39ec57aacf8fa98656dd357d05b6e21bfa5c9d`. Any `v0.3.0` GitHub Release must use that exact commit, not later commits on `main`. See [v0.3.0 release notes](releases/v0.3.0.md).
 
 ## Correcting the archived README (0.2.1 patch)
 
@@ -57,11 +57,11 @@ For a **new**, not-yet-published version, update `package.json` and `.claude-plu
 
 A separate [published npm verification workflow](../.github/workflows/verify-published-npm.yml) runs `scripts/verify-published-npm.mjs`. It checks the public npm `latest` metadata, exact version, package repository, SHA-512 integrity metadata, installs that exact version from npm into a clean temporary prefix and runs the published CLI's `--version` and `--demo` commands. This check uses **the downloaded npm package**, not the GitHub checkout tarball, and never stages or publishes anything.
 
-For the 0.2.0 release you can also run:
+For the latest released package you can also run:
 
 ```sh
 npm view agent-polygraph version
-npx --yes agent-polygraph@0.2.0 --demo
+npx --yes agent-polygraph@0.3.0 --demo
 ```
 
 ## Troubleshooting npm staging authentication
