@@ -57,8 +57,9 @@ Investigate evidence (read-only):
       --session <prefix>  filter claims by session ID prefix
       --agent claude|codex  select agent (repeatable)
       --ci                  optionally enrich with GitHub Actions evidence (network)
-  npx agent-polygraph doctor [--agent claude|codex]
+  npx agent-polygraph doctor [--agent claude|codex] [--ci]
       Check local transcripts, hook configuration and recorder permissions.
+      --ci optionally checks GitHub CLI authentication (may contact GitHub).
 
 Guard (stop unbacked "tests pass" claims as they happen):
 
@@ -128,6 +129,7 @@ async function doctorCommand(argv) {
     args: argv,
     options: {
       agent: { type: "string", multiple: true },
+      ci: { type: "boolean" },
       "claude-dir": { type: "string" },
       "codex-dir": { type: "string" },
     },
@@ -135,7 +137,7 @@ async function doctorCommand(argv) {
   const agents = values.agent?.map((s) => s.toLowerCase()) || ["claude", "codex"];
   if (agents.some((a) => !["claude", "codex"].includes(a))) throw Error("--agent must be claude or codex");
   const { diagnose, renderDoctor } = await import("../src/doctor.js");
-  const checks = await diagnose({ agents, roots: { claude: values["claude-dir"], codex: values["codex-dir"] } });
+  const checks = await diagnose({ agents, checkCi: values.ci, roots: { claude: values["claude-dir"], codex: values["codex-dir"] } });
   console.log(renderDoctor(checks));
 }
 
