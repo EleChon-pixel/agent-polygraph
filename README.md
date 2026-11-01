@@ -51,6 +51,8 @@ Under the tables it prints the latest examples: what the agent claimed, the last
 
 ## Explain a specific finding and check your setup
 
+**Release note:** These commands are on GitHub `main` for the upcoming `0.3.0` release. The currently published npm `0.2.1` package does not include them. Until approval of `0.3.0`, use the repository's CLI as `node bin/polygraph.js explain` or `node bin/polygraph.js doctor`.
+
 ```sh
 agent-polygraph explain --since 7d --limit 10  # show flagged or uncertain claims and their evidence
 agent-polygraph explain --session abc123        # narrow by session ID prefix
