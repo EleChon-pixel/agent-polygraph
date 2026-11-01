@@ -82,17 +82,36 @@ export function makeCi({ gh = ghApi } = {}) {
     return runsCache.get(key);
   };
 
-  /** Does this workflow run tests (a job or step named like one)? */
-  const runsTests = async (repo, r) => {
-    if (TEST_STEP.test(r.name)) return true;
+  /** Determine whether test jobs or test steps *actually* passed or failed.
+   * A test-named workflow is not evidence if its test job was skipped.
+   * Unavailable, incomplete and neutral results are not proof of a pass.
+   */
+  const testVerdict = async (repo, r) => {
     if (!jobsCache.has(r.id)) {
       jobsCache.set(
         r.id,
         (async () => {
-          stats.requests++;
-          const data = await gh(`repos/${repo}/actions/runs/${r.id}/jobs`, { per_page: "50" });
-          return (data?.jobs || []).some((j) => TEST_STEP.test(j.name) || (j.steps || []).some((s) => TEST_STEP.test(s.name)));
-        })().catch(() => false),
+          const results = [];
+          for (let page = 1; page <= 5; page++) {
+            stats.requests++;
+            const data = await gh(`repos/${repo}/actions/runs/${r.id}/jobs`, { per_page: "100", page: String(page) });
+            const jobs = data?.jobs || [];
+            for (const job of jobs) {
+              const steps = (job.steps || []).filter((step) => TEST_STEP.test(step.name || ""));
+              if (steps.length) {
+                for (const step of steps) results.push(step.conclusion || null);
+              } else if (TEST_STEP.test(job.name || "")) {
+                // For a test-named job, the job result itself is evidence.
+                results.push(job.conclusion || null);
+              }
+            }
+            if (jobs.length < 100) break;
+          }
+          if (!results.length) return null;
+          if (results.some((v) => v === "failure" || v === "timed_out")) return "fail";
+          if (results.every((v) => v === "success")) return "pass";
+          return "unknown";
+        })().catch(() => "unknown"),
       );
     }
     return jobsCache.get(r.id);
@@ -156,12 +175,17 @@ export function makeCi({ gh = ghApi } = {}) {
         forPush = forPush.filter((r) => r.sha === first);
       }
       const tests = [];
-      for (const r of forPush) if (await runsTests(p.repo, r)) tests.push(r);
+      for (const r of forPush) {
+        if (!r.completed || ["skipped", "neutral", "startup_failure", "cancelled"].includes(r.conclusion)) continue;
+        const testOutcome = await testVerdict(p.repo, r);
+        if (testOutcome) tests.push({ ...r, testOutcome });
+      }
       if (!tests.length) continue;
-      if (!tests.every((r) => r.completed)) continue; // still running when we looked: no result to use
-      const failed = tests.some((r) => r.conclusion === "failure" || r.conclusion === "timed_out");
-      const passed = tests.every((r) => ["success", "skipped", "neutral"].includes(r.conclusion));
-      if (!failed && !passed) continue; // cancelled, or GitHub never started it (startup_failure)
+      // A failed test step is definitive. All selected test results must be
+      // successful before we can back a claim.
+      const failed = tests.some((r) => r.testOutcome === "fail");
+      const passed = tests.every((r) => r.testOutcome === "pass");
+      if (!failed && !passed) continue; // unavailable, skipped or inconclusive test steps
       const finished = Math.max(...tests.map((r) => r.completed));
       const label = `CI: ${[...new Set(tests.map((r) => r.name))].join(", ")} (${tests[0].sha.slice(0, 7)})`;
       // the run starts at the push: edits after it aren't in the pushed commit
