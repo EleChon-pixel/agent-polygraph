@@ -64,7 +64,7 @@ try {
   if (publishedReadme !== sourceReadme)
     throw Error("Published README differs from the corrected repository README");
   if (publishedReadme.includes("0.2.0 release candidate") ||
-      /upcoming `\\d+\\.\\d+\\.\\d+` release|currently published npm `\\d+\\.\\d+\\.\\d+`|public npm release is currently \\*\\*\\d+\\.\\d+\\.\\d+\\*\\*|until approval of `\\d+\\.\\d+\\.\\d+`/i.test(publishedReadme))
+      /upcoming `\d+\.\d+\.\d+` release|currently published npm `\d+\.\d+\.\d+`|public npm release is currently \*\*\d+\.\d+\.\d+\*\*|until approval of `\d+\.\d+\.\d+`/i.test(publishedReadme))
     throw Error("Published README contains obsolete release-status language");
   console.log(JSON.stringify({
     package: pkg.name, publicLatestVersion: latest.version,
