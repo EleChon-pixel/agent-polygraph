@@ -98,6 +98,35 @@ test('"the full suite passes" is judged against the latest full-size run, by cou
   assert.equal(verdict(ok.claims), "backed");
 });
 
+test("scope: a passing targeted test alone cannot establish a full-suite pass", async () => {
+  const focused = analyzeSession(await parse([
+    tool(1, "a", "Bash", { command: "pytest -q tests/test_login.py" }),
+    res(2, "a", "8 passed in 0.4s"),
+    say(3, "The full suite passes."),
+  ]));
+  assert.equal(verdict(focused.claims), "unknown");
+  assert.equal(focused.unclear["no full-suite test run observed"], 1);
+  const specific = analyzeSession(await parse([
+    tool(1, "a", "Bash", { command: "pytest -q tests/test_login.py" }),
+    res(2, "a", "8 passed in 0.4s"),
+    say(3, "The login tests pass."),
+  ]));
+  assert.equal(verdict(specific.claims), "backed");
+});
+
+test("scope: an earlier full test run is the reference even when it printed no count", async () => {
+  const s = analyzeSession(await parse([
+    tool(1, "a", "Bash", { command: "pytest -q" }),
+    res(2, "a", "exit code 0"),
+    tool(3, "e", "Edit", { file_path: "/repo/src/auth.py", old_string: "a", new_string: "b" }),
+    res(4, "e", "The file /repo/src/auth.py has been updated successfully."),
+    tool(5, "b", "Bash", { command: "pytest -q tests/test_login.py" }),
+    res(6, "b", "8 passed in 0.4s"),
+    say(7, "The full suite passes."),
+  ]));
+  assert.equal(verdict(s.claims), "stale");
+});
+
 // --- record: snapshots -------------------------------------------------------------------
 
 function gitRepo() {
