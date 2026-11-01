@@ -66,4 +66,15 @@ test("CLI exposes explain and doctor and rejects an invalid limit", () => {
   const invalid = spawnSync(process.execPath, [cli, "explain", "--limit", "oops"], { encoding: "utf8", timeout: 15000 });
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.stderr, /--limit must be an integer/);
+  const root = tmp();
+  try {
+    const doctor = spawnSync(process.execPath, [cli, "doctor", "--agent", "claude", "--claude-dir", root], { encoding: "utf8", timeout: 15000 });
+    assert.equal(doctor.status, 0);
+    assert.match(doctor.stdout, /agent-polygraph doctor/);
+    const explain = spawnSync(process.execPath, [cli, "explain", "--demo", "--limit", "2"], { encoding: "utf8", timeout: 15000 });
+    assert.equal(explain.status, 0);
+    assert.match(explain.stdout, /agent-polygraph explain/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
