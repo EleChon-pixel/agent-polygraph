@@ -34,8 +34,12 @@ try {
   if(version!==pkg.version)throw Error("Packed CLI version mismatch, got "+version);
   const demo=run(process.execPath,[cli,"--demo"],installDir);
   if(!demo.includes("agent-polygraph"))throw Error("Packed CLI demo smoke failed");
+  const doctor=run(process.execPath,[cli,"doctor","--agent","claude","--claude-dir",path.join(tmp,"missing-claude")],installDir);
+  if(!doctor.includes("agent-polygraph doctor"))throw Error("Packed doctor smoke test failed");
+  const explain=run(process.execPath,[cli,"explain","--demo","--limit","1"],installDir);
+  if(!explain.includes("agent-polygraph explain"))throw Error("Packed explain smoke test failed");
   const summary={package:pkg.name,version:pkg.version,fileCount:packed.size,tarballBytes:fs.statSync(tarball).size,
-    sha512:meta.integrity,cleanInstall:true,demo:true,gitHubSourceNotAssumedToBePublished:true};
+    sha512:meta.integrity,cleanInstall:true,demo:true,diagnostics:true,gitHubSourceNotAssumedToBePublished:true};
   if(process.env.CHECK_NPM_REGISTRY==="1") {
     try {
       const response=await fetch("https://registry.npmjs.org/"+encodeURIComponent(pkg.name)+"/latest",{signal:AbortSignal.timeout(10000)});
