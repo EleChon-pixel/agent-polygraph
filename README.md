@@ -47,11 +47,11 @@ Under the tables it prints the latest examples: what the agent claimed, the last
 
 **What the benchmarks actually show:** agent-polygraph detects stale test claims more reliably than a *simple any-prior-pass rule* in [25 authored replay scenarios](docs/benchmark.md) (14/14 unbacked claims versus 7/14). In [12 instrumented projects using real test executions](docs/live-evaluation.md), its selective guard requested **5** additional tests and detected **3 of 7** failing final suites; rerunning the full suite every time required **12** additional tests and detected **all 7**. That is an efficiency-versus-coverage trade-off, **not** evidence that the guard improves overall defect detection. [Public-session workload projections](docs/benchmark.md) are separate from actual executed tests. The independently labeled human study is [still open](https://github.com/EleChon-pixel/agent-polygraph/issues/3).
 
-**npm distribution:** Install the most recently *published* release with `npx --yes agent-polygraph --demo`, or pin an exact version (for example, `npx --yes agent-polygraph@0.2.0 --demo`). Check the actual public version with `npm view agent-polygraph version`: the GitHub `main` branch may be ahead of npm. Releases use GitHub OIDC trusted publishing and require maintainer 2FA approval before going live. The [automated public-install check](.github/workflows/verify-published-npm.yml) tests the download from npm, not just the repository source. See [Release instructions](docs/releasing.md).
+**npm distribution:** Run the latest published release with `npx --yes agent-polygraph --demo`. To find the currently published version before pinning one, use `npm view agent-polygraph version`. The GitHub `main` branch may be ahead of npm. Releases use GitHub OIDC trusted publishing and require maintainer 2FA approval before going live. The [automated public-install check](.github/workflows/verify-published-npm.yml) tests the download from npm, not just the repository source. See [Release instructions](docs/releasing.md).
 
 ## Explain a specific finding and check your setup
 
-**Release note:** These commands are on GitHub `main` for the upcoming `0.3.0` release. The currently published npm `0.2.1` package does not include them. Until approval of `0.3.0`, use the repository's CLI as `node bin/polygraph.js explain` or `node bin/polygraph.js doctor`.
+Both commands are available in the published npm package. Run them using `npx --yes agent-polygraph explain` and `npx --yes agent-polygraph doctor`, or use `agent-polygraph` directly after a global installation.
 
 ```sh
 agent-polygraph explain --since 7d --limit 10  # show flagged or uncertain claims and their evidence
@@ -225,7 +225,7 @@ npm run benchmark:replay
 npm run benchmark:live
 ```
 
-Before distributing a new version, verify `npm view agent-polygraph version`, the published tarball (`npm pack --dry-run`), and that a clean install really contains the latest privacy and guard fixes. The public npm release is currently **0.2.1**. Development on `main` may contain unreleased changes, so `npx agent-polygraph` does not necessarily have the latest GitHub fixes. A green GitHub Actions badge does **not** prove npm has been updated.
+Before distributing a new version, compare `npm view agent-polygraph version` with `package.json`, inspect the release tarball (`npm pack --dry-run`), and verify that a clean public npm install contains the intended fixes. Development on `main` can contain unreleased changes, so a green GitHub Actions badge **does not** prove npm has been updated.
 
 ## Privacy
 
