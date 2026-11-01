@@ -49,6 +49,18 @@ Under the tables it prints the latest examples: what the agent claimed, the last
 
 **npm distribution:** Install the most recently *published* release with `npx --yes agent-polygraph --demo`, or pin an exact version (for example, `npx --yes agent-polygraph@0.2.0 --demo`). Check the actual public version with `npm view agent-polygraph version`: the GitHub `main` branch may be ahead of npm. Releases use GitHub OIDC trusted publishing and require maintainer 2FA approval before going live. The [automated public-install check](.github/workflows/verify-published-npm.yml) tests the download from npm, not just the repository source. See [Release instructions](docs/releasing.md).
 
+## Explain a specific finding and check your setup
+
+```sh
+agent-polygraph explain --since 7d --limit 10  # show flagged or uncertain claims and their evidence
+agent-polygraph explain --session abc123        # narrow by session ID prefix
+agent-polygraph doctor                         # check installed hooks, logs and recorder settings
+```
+
+`explain` shows the claim, available last-test evidence, relevant subsequent edit and why a result is inconclusive. It is **read-only**, does not run tests, and may print private transcript excerpts, commands and paths. **Do not share its output without reviewing/redacting it.** Use `explain --ci` only if you want to ask GitHub for additional CI evidence.
+
+`doctor` inspects local transcript discovery, a small sample of log formats, project/global hook settings, and recorder-directory permissions. It **never modifies settings or installs hooks**. An uninstalled direct hook is informational: the guard is optional and the Claude Code plugin may supply one separately. This is a diagnostic, not a complete security audit.
+
 ## Share your numbers
 
 ```sh
@@ -173,7 +185,7 @@ The replay labels and scenarios were constructed by the project authors. The gua
 These are the gaps that remain. `record` and `--ci` can reduce some of them, but neither replaces running tests or provides independent proof of correctness.
 
 - Tests outside the logs. Tests the agent ran, test runs Claude Code recorded from hooks, commands you typed with `!` in Claude Code, and test output you pasted into the chat all count. So do your own bash and zsh runs with `record --shell`, and GitHub Actions runs on pushed commits with `--ci`. Other shells (fish, PowerShell, an IDE's test button), other CI services, and CI runs on commits the session never printed are still invisible.
-- "The full suite passes" is compared with the latest run about as large as the largest one in that folder, using the counts the runner printed. If no run printed a count, it's compared with the latest run, which may have been narrower. Claims that name no count, test file or full suite are compared with the latest run.
+- "The full suite passes" prefers an explicitly recognized full-suite command in the same folder, even when no count was printed. If the only observed run is targeted and there is no full-suite evidence, the result is **inconclusive**, not backed. Count-based heuristics still help when the runner cannot reliably identify the suite's scope. A passing test run is evidence of that run, never proof that all code works.
 - Output with no summary. Codex keeps each command's full output. Claude Code may save long output to a separate file that the analyzer reads if it still exists. New `record` entries retain **parsed test outcomes and pass counts, not raw test output**. A run abandoned before printing a result leaves nothing to read.
 - Files a script names at run time. Without `record` these make a claim "couldn't tell", never "backed". `record` settles them, but only in git checkouts and only for sessions after it was installed.
 - New agent versions can change the log format. Supported: Claude Code 2.x (Bash and PowerShell tools; Linux, macOS and Windows paths) and Codex CLI. The report lists the versions it read, warns about newer ones, and counts files it couldn't parse instead of dropping them silently.
@@ -191,6 +203,8 @@ These are the gaps that remain. `record` and `--ci` can reduce some of them, but
 --examples <n>      examples to show per finding type (default 3, 0 to hide)
 --html [file]       write a numbers-only report to share (default polygraph.html)
 --json              full results as JSON: findings, unclear reasons, unreadable files (keep it local)
+explain             investigate flagged/uncertain verdicts (--limit, --since, --session, --project)
+doctor              check local hooks, transcript availability and recorder permissions
 --ci                also use GitHub Actions results (goes online, through your gh login)
 --claude-dir <dir>  Claude Code projects dir (default ~/.claude/projects, or $CLAUDE_CONFIG_DIR/projects)
 --codex-dir <dir>   Codex sessions dir (default ~/.codex/sessions, or $CODEX_HOME/sessions)
@@ -209,7 +223,7 @@ npm run benchmark:replay
 npm run benchmark:live
 ```
 
-Before distributing a new version, verify `npm view agent-polygraph version`, the published tarball (`npm pack --dry-run`), and that a clean install really contains the latest privacy and guard fixes. The repository declares version `0.2.0` as the **next release candidate**; until it is published, `npx agent-polygraph` still installs the older public registry version. A green GitHub Actions badge does **not** prove npm has been updated.
+Before distributing a new version, verify `npm view agent-polygraph version`, the published tarball (`npm pack --dry-run`), and that a clean install really contains the latest privacy and guard fixes. The public npm release is currently **0.2.1**. Development on `main` may contain unreleased changes, so `npx agent-polygraph` does not necessarily have the latest GitHub fixes. A green GitHub Actions badge does **not** prove npm has been updated.
 
 ## Privacy
 
@@ -224,7 +238,7 @@ It reads files and works offline. These operations are opt-in:
 
 - `guard` and `record` edit the hook config files they print when you install or uninstall them, and `record --shell` adds or removes one marked line in `~/.bashrc` and `~/.zshrc`.
 - `record` saves snapshots and logs in `~/.agent-polygraph`.
-- `--ci` contacts api.github.com through `gh` and sends repository names and date ranges.
+- `--ci` and `explain --ci` contact api.github.com through `gh` and send repository names and date ranges.
 
 The terminal report and `--json` include excerpts from your sessions. `--html` doesn't.
 
