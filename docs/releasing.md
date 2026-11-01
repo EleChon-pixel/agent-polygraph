@@ -1,6 +1,6 @@
 # Publishing agent-polygraph to npm
 
-**Published:** `agent-polygraph@0.3.0` is live as npm's `latest` release; [public installation and both new commands were verified](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41256795869). Earlier `0.2.1` was a documentation-only patch. The [0.2.1 staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254157812) used GitHub OIDC with signed provenance, followed by maintainer approval. The [public npm install verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254304819) confirmed **0.2.1** as `latest`, downloaded and ran the published CLI, and verified that its bundled README exactly matches the corrected version-neutral GitHub README. The older, immutable 0.2.0 tarball retains the earlier prerelease notice; do not attempt to overwrite it. A GitHub commit alone does not publish a new npm release.
+**Published:** `agent-polygraph@0.3.0` is live as npm's `latest` release. The [staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41256482642) used GitHub OIDC trusted publishing and signed provenance; the maintainer subsequently approved the package with npm 2FA. A [fresh public-registry verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41256795869) installed the immutable 0.3.0 package and validated its CLI, `explain`, `doctor`, and integrity metadata. Previously published npm versions remain immutable. A GitHub commit alone does not publish a new npm release.
 
 ## Published v0.3.0
 
