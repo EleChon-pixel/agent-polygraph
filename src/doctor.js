@@ -22,7 +22,7 @@ function checkConfig(file, sub) {
 }
 
 /** Diagnose local files without mutating settings or running any tests. */
-export async function diagnose({ cwd = process.cwd(), roots = {}, agents = ["claude", "codex"], sample = 2 } = {}) {
+export async function diagnose({ cwd = process.cwd(), roots = {}, agents = ["claude", "codex"], sample = 2, checkCi = false } = {}) {
   const checks = [];
   for (const agent of agents) {
     const src = SOURCES[agent];
@@ -69,6 +69,16 @@ export async function diagnose({ cwd = process.cwd(), roots = {}, agents = ["cla
   } catch (e) {
     checks.push({ kind: e.code === "ENOENT" ? "info" : "warn", message:
       e.code === "ENOENT" ? "Local recorder not initialized (optional)" : `Local recorder inaccessible (${e.code || e.name})` });
+  }
+  if (checkCi) {
+    // Explicit opt-in: checking gh login can contact GitHub, unlike the default doctor.
+    try {
+      const { checkGh } = await import("./ci.js");
+      await checkGh();
+      checks.push({ kind: "ok", message: "GitHub CLI authentication available for --ci" });
+    } catch (e) {
+      checks.push({ kind: "warn", message: `GitHub CLI authentication unavailable for --ci: ${e.message}` });
+    }
   }
   return checks;
 }
