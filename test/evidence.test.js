@@ -281,7 +281,11 @@ function ghStub(runs, jobs = {}) {
   const calls = [];
   const gh = async (endpoint, params) => {
     calls.push({ endpoint, params });
-    if (endpoint.endsWith("/jobs")) return { jobs: jobs[endpoint.split("/").at(-2)] || [{ name: "test", steps: [{ name: "Run tests" }] }] };
+    if (endpoint.endsWith("/jobs")) {
+      const id = Number(endpoint.split("/").at(-2));
+      const result = runs.find((r) => r.id === id)?.conclusion || null;
+      return { jobs: jobs[id] || [{ name: "test", conclusion: result, steps: [{ name: "Run tests", conclusion: result }] }] };
+    }
     return { workflow_runs: runs };
   };
   return { gh, calls };
@@ -328,6 +332,29 @@ test("--ci: a failed workflow fails the claim; one still running when the claim 
   const dir = pushedRepo();
   assert.equal(verdict((await ciSession(dir, [({ say }) => say(400, "All tests pass.")], [wf(1, "1a2b3c4", 10, 300, "failure")])).s.claims), "failed");
   assert.equal(verdict((await ciSession(dir, [({ say }) => say(200, "All tests pass.")], [wf(1, "1a2b3c4", 10, 300, "success")])).s.claims), "no-run");
+});
+
+test("--ci: skipped or neutral workflow results never prove passing tests or green CI", async () => {
+  const dir = pushedRepo();
+  for (const conclusion of ["skipped", "neutral"]) {
+    const runs = [wf(1, "1a2b3c4", 10, 300, conclusion)];
+    assert.equal(verdict((await ciSession(dir, [({ say }) => say(400, "All tests pass.")], runs)).s.claims), "no-run");
+    assert.equal(verdict((await ciSession(dir, [({ say }) => say(400, "CI is green.")], runs)).s.claims), "unknown");
+  }
+});
+
+test("--ci: successful workflow with skipped test job does not back a passing claim", async () => {
+  const dir = pushedRepo();
+  const runs = [wf(7, "1a2b3c4", 10, 300, "success", "Tests")];
+  const jobs = { 7: [{ name: "test", conclusion: "skipped", steps: [{ name: "Run tests", conclusion: "skipped" }] }] };
+  assert.equal(verdict((await ciSession(dir, [({ say }) => say(400, "All tests pass.")], runs, jobs)).s.claims), "no-run");
+});
+
+test("--ci: test-step outcome overrides an unrelated successful workflow conclusion", async () => {
+  const dir = pushedRepo();
+  const runs = [wf(8, "1a2b3c4", 10, 300, "success", "Checks")];
+  const jobs = { 8: [{ name: "build", conclusion: "success", steps: [{ name: "Run tests", conclusion: "failure" }] }] };
+  assert.equal(verdict((await ciSession(dir, [({ say }) => say(400, "All tests pass.")], runs, jobs)).s.claims), "failed");
 });
 
 test("--ci: an edit after the push makes the CI result stale", async () => {
