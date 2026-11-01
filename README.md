@@ -61,7 +61,7 @@ agent-polygraph doctor                         # check installed hooks, logs and
 
 `explain` shows the claim, available last-test evidence, relevant subsequent edit and why a result is inconclusive. It is **read-only**, does not run tests, and may print private transcript excerpts, commands and paths. **Do not share its output without reviewing/redacting it.** Use `explain --ci` only if you want to ask GitHub for additional CI evidence.
 
-`doctor` inspects local transcript discovery, a small sample of log formats, project/global hook settings, and recorder-directory permissions. It **never modifies settings or installs hooks**. An uninstalled direct hook is informational: the guard is optional and the Claude Code plugin may supply one separately. This is a diagnostic, not a complete security audit.
+`doctor` inspects local transcript discovery, a small sample of log formats, project/global hook settings, and recorder-directory permissions. It **never modifies settings or installs hooks**. An uninstalled direct hook is informational: the guard is optional and the Claude Code plugin may supply one separately. The default is offline; `doctor --ci` explicitly checks whether your GitHub CLI login is available, which may contact GitHub. This is a diagnostic, not a complete security audit.
 
 ## Share your numbers
 
