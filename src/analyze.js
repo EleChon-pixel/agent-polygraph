@@ -236,7 +236,7 @@ export function analyzeSession(session) {
       const forSha = before.filter((r) => r.sha === sha);
       if (forSha.some((r) => r.completed && r.completed <= ev.ts && r.conclusion === "failure")) verdict = "failed";
       else if (forSha.some((r) => !r.completed || r.completed > ev.ts)) [verdict, why] = ["unknown", "CI still running"];
-      else if (forSha.every((r) => ["success", "skipped", "neutral"].includes(r.conclusion))) verdict = "backed";
+      else if (forSha.every((r) => r.conclusion === "success")) verdict = "backed";
       else [verdict, why] = ["unknown", "CI run didn't finish normally"];
     }
     s.claims[verdict]++;
