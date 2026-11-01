@@ -1,6 +1,6 @@
 {
   "name": "agent-polygraph",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Sends Claude back once when its final message says tests pass but the session shows no passing run after the last edit. Adds /agent-polygraph:check for a report on your past sessions. Runs locally, nothing is uploaded.",
   "author": {
     "name": "Eleftherios Chondros",
