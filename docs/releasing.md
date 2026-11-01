@@ -2,6 +2,10 @@
 
 **Published:** `agent-polygraph@0.2.1` is live as npm's `latest` release. The [0.2.1 staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254157812) used GitHub OIDC with signed provenance, followed by maintainer approval. The [public npm install verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41254304819) confirmed **0.2.1** as `latest`, downloaded and ran the published CLI, and verified that its bundled README exactly matches the corrected version-neutral GitHub README. The older, immutable 0.2.0 tarball retains the earlier prerelease notice; do not attempt to overwrite it. A GitHub commit alone does not publish a new npm release.
 
+## Unpublished v0.3.0 source
+
+GitHub `main` currently prepares **0.3.0** with conservative CI test evidence, stronger full-suite claim handling and read-only `explain`/`doctor` commands. The published npm `latest` remains **0.2.1** until the maintainer stages and approves the new package. Read [v0.3.0 release notes](releases/v0.3.0.md) and wait for the main CI matrix and npm package readiness to pass before manually running `publish-npm.yml` with version `0.3.0`. Approval with npm 2FA is separate. Do not retag old releases or publish directly.
+
 ## Correcting the archived README (0.2.1 patch)
 
 The npm 0.2.0 package is immutable and retains a stale prerelease notice in its included `README.md`. That issue was **fixed in the publicly published 0.2.1 patch**. Its bundled README is version-neutral, and a clean npm install verified it is identical to the corrected GitHub README. No runtime behavior was changed for this documentation-only patch.
