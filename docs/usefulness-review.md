@@ -27,3 +27,9 @@ These counts reproduce the previously documented trade-off: selective claim chec
 For a cheap, reliable suite, an always-rerun Stop hook offers stronger failure coverage and simpler behavior. Keep ordinary tests and CI regardless of this tool. The guard abstains on ambiguity, permits only one corrective cycle and cannot prove the agent complied afterward.
 
 The next useful validation is a separately selected set of real sessions, independently reviewed without seeing predictions. Measure incorrect blocks, missed unbacked claims, abstentions and actual extra suite executions. Existing public-data attempts produced no eligible independent holdout claims; reporting a holdout accuracy percentage would be unsupported. Until that evidence exists, position this tool as an inspectable audit aid rather than a general agent-reliability solution.
+
+## Follow-up: stronger executable guard
+
+Version 0.4.0 adds explicit `verify` and `strict` policies. `verify` closes the authored benchmark's four missed failures by executing the configured suite itself: the comparison now measures 12 extra executions and 7/7 failing suites detected, matching always-rerun coverage in that scenario set. It also retests repairs and reports unresolved budget exhaustion. Default caching is off; optional pass reuse trades execution cost for assumptions about ignored files and external state.
+
+The original claim-only policy still has the limits described above and remains the compatibility default. The new policy adds bounded recovery and inspectable local verification receipts to an ordinary test-running hook; it is not a stronger defect oracle than the chosen tests. Independent transcript-classifier evaluation remains necessary.

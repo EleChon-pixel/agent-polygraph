@@ -65,8 +65,18 @@ Guard (stop unbacked "tests pass" claims as they happen):
 
   npx agent-polygraph guard --install            add a Stop hook to this project (.claude/, .codex/)
   npx agent-polygraph guard --install --global   add it for every project (~/.claude, ~/.codex)
+  npx agent-polygraph guard --install --mode verify --test-command "npm test"
+  npx agent-polygraph guard --install --mode strict
+  npx agent-polygraph guard --status
   npx agent-polygraph guard --uninstall [--global]
       --agent claude|codex   only that agent's config
+      --mode claims|strict|verify  transcript claims (default), strict claims, or executable verification
+      --test-command <cmd>   explicit project test command for verify mode
+      --timeout <seconds>    command deadline (default 60, max 300)
+      --max-attempts <n>     verification attempts per repair cycle (default 2, max 5)
+      --cache-seconds <n>    opt-in unchanged-tree pass reuse (default 0, max 3600)
+      --on-unknown stop|warn  unresolved verification policy (default stop)
+      --cwd <dir>           fixed verification project; installer binds the current folder
 
 Record (more evidence than the logs carry; stays on this machine):
 
@@ -205,22 +215,53 @@ async function guard(argv) {
       agent: { type: "string", multiple: true },
       command: { type: "string" },
       "from-plugin": { type: "boolean" },
+      mode: { type: "string", default: "claims" },
+      "test-command": { type: "string" },
+      "verify-config": { type: "string" },
+      cwd: { type: "string" },
+      timeout: { type: "string", default: "60" },
+      "max-attempts": { type: "string", default: "2" },
+      "cache-seconds": { type: "string", default: "0" },
+      "on-unknown": { type: "string", default: "stop" },
+      status: { type: "boolean" },
     },
   });
   const { runHook, install, uninstall } = await import("../src/guard.js");
+  const mode = values.mode;
+  const { verifyOptions, guardStatus } = await import("../src/verify.js");
+  if (values.status) {
+    console.log(JSON.stringify(guardStatus(values.cwd || process.cwd()), null, 2));
+    return;
+  }
+  if (mode !== "verify" && (values["test-command"] || values["verify-config"])) throw Error("--test-command requires --mode verify");
+  let verification;
+  try {
+    verification = mode === "verify" && !values.uninstall ? verifyOptions(values["verify-config"]
+      ? JSON.parse(Buffer.from(values["verify-config"], "base64url").toString("utf8"))
+      : { testCommand: values["test-command"], cwd: values.cwd || process.cwd(),
+      timeout: Number(values.timeout), maxAttempts: Number(values["max-attempts"]), cacheSeconds: Number(values["cache-seconds"]), onUnknown: values["on-unknown"] }) : {};
+  } catch (e) {
+    if (mode === "verify" && !values.install && !values.uninstall) {
+      process.stdout.write(JSON.stringify({ continue: false, stopReason: "agent-polygraph: invalid verification policy or unavailable project directory; verification remains unresolved. Reinstall the hook with a valid project path and command." }));
+      return;
+    }
+    throw e;
+  }
+  if (!["claims", "strict", "verify"].includes(mode)) throw Error("--mode must be claims, strict or verify");
   if (!values.install && !values.uninstall) {
-    // invoked by the agent as a Stop hook; never fail the agent's turn
+    // Legacy mode is fail-open; stronger policies surface their own failures.
     try {
       const chunks = [];
       for await (const c of process.stdin) chunks.push(c);
-      const out = await runHook(Buffer.concat(chunks).toString("utf8"), { plugin: values["from-plugin"] });
+      const out = await runHook(Buffer.concat(chunks).toString("utf8"), { plugin: values["from-plugin"], mode, ...verification });
       if (out) process.stdout.write(JSON.stringify(out));
     } catch (e) {
+      if (mode !== "claims") process.stdout.write(JSON.stringify({ continue: false, stopReason: "agent-polygraph: guard failed; verification remains unresolved. Run guard --status and doctor to investigate." }));
       if (process.env.POLYGRAPH_DEBUG) console.error(e);
     }
     return;
   }
-  const opts = { agents: values.agent?.length ? values.agent : ["claude", "codex"], global: values.global, command: values.command };
+  const opts = { agents: values.agent?.length ? values.agent : ["claude", "codex"], global: values.global, command: values.command, mode, ...verification };
   const results = values.install ? install(opts) : uninstall(opts);
   for (const r of results) {
     const verb = values.install ? (r.changed ? "added Stop hook to" : "already installed in") : r.changed ? "removed Stop hook from" : "nothing to remove in";
@@ -228,8 +269,11 @@ async function guard(argv) {
     if (r.backup) console.log(`  Recovery backup: ${r.backup}`);
   }
   if (values.install) {
-    console.log(`\nHook command: ${results[0].command}`);
-    console.log("When a final message says tests pass without a passing run after the last edit, the agent is asked once to rerun them.");
+    if (mode === "verify") {
+      console.log(`\nVerification project: ${verification.cwd}\nTest command: ${verification.testCommand}`);
+      console.log(`Timeout: ${verification.timeout}s; attempts per repair cycle: ${verification.maxAttempts}; pass cache: ${verification.cacheSeconds}s; unknown: ${verification.onUnknown}.`);
+    } else console.log(`\nHook command: ${results[0].command}`);
+    console.log(mode === "verify" ? "Verification runs the configured command even without a claim, rechecks repairs, and stops with a visible unresolved result when the bounded repair budget is exhausted." : mode === "strict" ? "Strict mode also challenges inconclusive passing-test claims and reports unresolved follow-ups." : "When a final message says tests pass without a passing run after the last edit, the agent is asked once to rerun them.");
     if (results.some((r) => r.agent === "codex")) {
       console.log(
         values.global

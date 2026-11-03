@@ -10,8 +10,10 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { runHook } from "../src/guard.js";
+import { guardStatus } from "../src/verify.js";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "agent-polygraph-live-"));
+process.env.AGENT_POLYGRAPH_HOME = path.join(root, "guard-state");
 const T = Date.UTC(2026, 9, 31, 12, 0, 0);
 const stamp = (n) => new Date(T + n * 1000).toISOString();
 const fixtureCases = [
@@ -30,7 +32,7 @@ const fixtureCases = [
 ];
 const out = { dataset: "instrumented-local-projects", node: process.version, platform: process.platform,
   semantics: "Actual tests are executed. A guard block is followed by one forced test in this harness; no autonomous agent is running.",
-  baselines: ["always-run-complete-suite", "claim-guard-then-complete-suite-if-blocked", "naive-any-prior-pass-then-complete-suite-if-blocked"],
+  baselines: ["always-run-complete-suite", "claim-guard-then-complete-suite-if-blocked", "naive-any-prior-pass-then-complete-suite-if-blocked", "configured-executable-verification-no-cache"],
   cases: [], totals: {} };
 let seq = 0;
 function shell(dir, focused = false) {
@@ -47,6 +49,8 @@ function writeSource(dir, mode, label) {
   fs.writeFileSync(p, "export const value = " + (mode === "bad" ? 2 : 1) + "; // " + label + "\n");
 }
 function setup(dir, mode) {
+  const git = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
+  if (git.status !== 0) throw Error("git init failed: " + git.stderr);
   fs.mkdirSync(path.join(dir, "src"), { recursive: true });
   fs.mkdirSync(path.join(dir, "test"), { recursive: true });
   writeSource(dir, mode, "start");
@@ -125,8 +129,16 @@ try {
       const test = need ? shell(dir) : null;
       return { executed: !!test, detected: test ? !test.success : false, testMs: test?.ms || 0, decisionMs };
     };
+    const verifiedStart = performance.now();
+    await runHook(JSON.stringify({ transcript_path: transcript, cwd: dir, last_assistant_message: finalText }), {
+      mode: "verify", cwd: dir, testCommand: '"' + process.execPath + '" --test test/unit.test.mjs test/smoke.test.mjs', timeout: 30,
+    });
+    const verifiedMs = performance.now() - verifiedStart;
+    const receipt = guardStatus(dir).records[0];
+    const verified = { executed: true, detected: receipt.outcome === "fail", testMs: receipt.commandMs,
+      decisionMs: Math.max(0, verifiedMs - receipt.commandMs), outcome: receipt.outcome };
     const row = { scenario: c.name, oracleFail, guardBlocked: blocked, naiveBlocked,
-      always: runIf(true), guard: runIf(blocked, guardMs), naive: runIf(naiveBlocked) };
+      always: runIf(true), guard: runIf(blocked, guardMs), naive: runIf(naiveBlocked), verified };
     out.cases.push(row);
   }
   out.totals = {
@@ -135,8 +147,11 @@ try {
     always: summarizePolicy(out.cases, "always"),
     guard: summarizePolicy(out.cases, "guard"),
     naive: summarizePolicy(out.cases, "naive"),
+    verified: summarizePolicy(out.cases, "verified"),
   };
   console.log(JSON.stringify(out, null, 2));
+  if (out.totals.verified.missedActualFailingFinalSuites !== 0) throw Error("Executable verification must detect all deterministic failing fixture suites");
+  if (out.cases.some((r) => !r.oracleFail && r.verified.outcome !== "pass")) throw Error("Executable verification must accept stable passing fixture suites");
   if (!out.cases.some((r) => r.oracleFail && !r.guard.detected)) throw Error("Missing guard limitation fixture");
   if (!out.cases.some((r) => r.oracleFail && !r.naive.detected && r.guard.detected)) throw Error("Missing freshness advantage fixture");
   if (out.totals.always.missedActualFailingFinalSuites !== 0) throw Error("Always-rerun must catch all deterministic failing suites");

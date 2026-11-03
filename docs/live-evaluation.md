@@ -50,3 +50,17 @@ The out-of-sample audit is separated from the core test CI and never uploads dow
 The first new source (`clem/ml-intern-sessions`, 92 transcripts) supplied zero eligible claims under these rules. `trace-commons/agent-traces` had **zero new sessions** beyond the already-evaluated revision `112ebd4`. The separately published, redacted `crispwisp/wisp-claude-code-sessions` corpus was pinned to revision `c2c90b5`; [103 downloaded sessions](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41249359541) included 2,122 assistant messages and 211 source-edit tool calls, but **no claims fitting the narrow independently verifiable rule**. Consequently, *no holdout accuracy percentage can be reported*. A larger SWE-chat candidate set could not be audited because its file-download endpoint returned **HTTP 401 on all 500 attempts**. Those download failures must not be counted as model errors or as negative labels.
 
 The holdout workflow now uses only the pinned, accessible redacted source and prints eligibility and abstention counts. It cannot substitute for independently blinded human judgment. The review procedure and recruitment requirements are tracked in [issue #3](https://github.com/EleChon-pixel/agent-polygraph/issues/3).
+
+## Executable verification policy (v0.4.0)
+
+The same 12 authored fixture scenarios now include a fourth policy: `verify` executes an explicitly configured complete test command at Stop, regardless of any claim. Its default cache is disabled. The fixtures run in generated Git checkouts so complete before/after working-tree fingerprints can be compared. `npm run benchmark:live` asserts that all seven genuinely failing fixture suites are detected, and all five stable passing suites are accepted.
+
+| Policy | Extra test executions | Failing final suites detected |
+|---|---:|---:|
+| Always rerun | 12 | 7/7 |
+| Claim-only guard | 5 | 3/7 |
+| Executable verification, cache off | 12 | 7/7 |
+
+This closes the demonstrated claim-only coverage gap by actually executing the suite, at the same test-invocation cost as always-rerun plus fingerprint/state overhead. It is not free coverage or evidence of a general speedup. Optional cache reuse is separately regression-tested for unchanged inputs, configuration changes and expiry policy; no reduction in field test cost is claimed. Repair-and-retest, ignored continued-stop flags, timeout handling and bounded exhaustion are exercised with real subprocesses in `test/verify.test.js` and in the installed npm tarball smoke check. No autonomous-agent compliance rate or independent classifier precision/recall is established by these tests.
+
+Hook continuation and visible-stop behavior follow the [Claude Code Stop reference](https://code.claude.com/docs/en/hooks#stop) and [official OpenAI hook documentation](https://learn.chatgpt.com/docs/hooks). Those hosts can disable hooks, fail before execution or impose their own limits. An unresolved visible stop is not a passing verification and does not guarantee the model retracts an already-authored final message.
