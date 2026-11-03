@@ -223,7 +223,7 @@ export function snapshot(cwd) {
   });
   const root = git(["rev-parse", "--show-toplevel"]).trim();
   const files = Object.create(null);
-  const paths = git(["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean);
+  const paths = git(["-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "buffer" }).toString("utf8").split("\0").filter(Boolean);
   const key = localKey();
   let complete = true;
   let total = 0;
@@ -304,7 +304,7 @@ export function runShellRecord(input) {
     if (!Number.isFinite(r.start) || !Number.isFinite(r.end) || r.end < r.start ||
         !Number.isInteger(r.exit) || typeof r.cwd !== "string" ||
         !path.isAbsolute(r.cwd) || r.cwd.length > 4096) return false;
-    const rec = { v: 2, kind: "terminal", start: r.start, end: r.end, exit: r.exit, cwd: r.cwd, runner: r.runner };
+    const rec = { v: 2, kind: "terminal", start: r.start, end: r.end, exit: r.exit, cwd: r.cwd, runner: r.runner, scope: r.scope === "full" ? "full" : "unknown" };
     secureWrite(terminalFile(), JSON.stringify(rec) + "\n", true);
     return true;
   } catch {
@@ -325,7 +325,7 @@ function addTerminalRuns(session, runs) {
     const end = Math.round((r.end ?? r.start) * 1000);
     const runner = r.runner || r.cmd; // legacy raw-command records are still readable
     if (!(start >= session.start && start <= session.end) || !r.cwd || !related(r.cwd) || !runner || !isTestCommand(runner)) continue;
-    const ev = { kind: "cmd", ts: start, seq: Number.MAX_SAFE_INTEGER, cmd: runner, workdir: r.cwd, external: "terminal", sub: false };
+    const ev = { kind: "cmd", ts: start, seq: Number.MAX_SAFE_INTEGER, cmd: runner, workdir: r.cwd, external: "terminal", sub: false, scope: r.runner ? (r.scope === "full" ? "full" : "unknown") : undefined };
     session.events.push(ev, { kind: "result", of: ev, ts: end, seq: Number.MAX_SAFE_INTEGER, exitCode: typeof r.exit === "number" ? r.exit : null, isError: null, output: "" });
     added++;
   }

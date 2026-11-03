@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import * as claude from "./sources/claude.js";
 import * as codex from "./sources/codex.js";
 import { analyzeSession } from "./analyze.js";
-import { findTestClaim, findTestClaims } from "./classify.js";
+import { findTestClaim } from "./classify.js";
 import { applyRecords } from "./record.js";
 import { readSettings, writeSettings } from "./safe-config.js";
 
@@ -66,11 +66,9 @@ export async function runHook(stdinText, { plugin = false } = {}) {
   if (!final || !findTestClaim(final.text)) return null;
 
   const result = analyzeSession(session);
-  const detail = result.findings.find((f) => f.type === "claim" && f.ts === final.ts && final.verdict === f.detail.verdict)?.detail;
+  const detail = result.findings.findLast((f) => f.type === "claim" && f.ts === final.ts)?.detail;
   if (!detail) return null; // backed, or nothing we can judge
-  // quote the message's conclusion ("All tests pass."), not a step along the way
-  const quote = findTestClaims(final.text).at(-1) ?? detail.claim;
-  return { decision: "block", reason: reasonFor({ ...detail, claim: quote }) };
+  return { decision: "block", reason: reasonFor(detail) };
 }
 
 function reasonFor(d) {

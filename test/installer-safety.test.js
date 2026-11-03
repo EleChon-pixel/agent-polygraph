@@ -76,7 +76,7 @@ test("shell installer escapes single quotes, dollar signs and spaces in startup 
     const added=installShell();
     assert.ok(added.rcs.find(x=>x.file===rc)?.changed);
     assert.equal(fs.readFileSync(rc,"utf8").includes("agent-polygraph record"),true);
-    const bash=spawnSync("bash",["-ic",'source "$HOME/.bashrc"; printf "%s" "$__apg_entry"'],{
+    const bash=spawnSync("bash",["--noprofile","--norc","-ic",'source "$HOME/.bashrc"; printf "%s" "$__apg_entry"'],{
       env:{...process.env,HOME:home},encoding:"utf8",timeout:10000
     });
     assert.equal(bash.status,0,bash.stderr);

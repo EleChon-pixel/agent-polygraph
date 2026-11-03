@@ -45,6 +45,10 @@ node scripts/release-check.mjs
 
 The archived `0.3.0` tarball cannot be modified in place. The published `0.3.1` patch corrects outdated version and feature-availability language in the README without changing runtime behavior. The public npm install and the corrected README were verified; see [v0.3.1 release notes](releases/v0.3.1.md).
 
+## Prepared evidence patch (v0.3.2)
+
+The source prepares 0.3.2 for the process below; this is not a claim of npm publication. See [v0.3.2 release notes](releases/v0.3.2.md) and the [utility review](usefulness-review.md). Keep the published 0.3.1 record above until public-registry verification confirms the new release. Users of shell integration should regenerate the copied script after upgrading with `agent-polygraph record --install --shell`.
+
 ## Stage and approve a future version
 
 For a **new**, not-yet-published version, update `package.json` and `.claude-plugin/plugin.json` to the same version, commit the changes to `main`, and confirm CI is green. Then:

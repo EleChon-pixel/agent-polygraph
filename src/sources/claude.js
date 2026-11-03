@@ -98,6 +98,8 @@ export async function parse(entry) {
             const evs = toolEvents(block, ts, isSub);
             if (evs.length && evs[0].kind === "cmd") {
               evs[0].id = block.id;
+              // A subagent may use a separate checkout. Never inherit the parent's cwd.
+              if (isSub) evs[0].workdir = rec.cwd || undefined;
               if (rec.gitBranch && rec.gitBranch !== "HEAD") evs[0].branch = rec.gitBranch;
               // `tail -5 …/tasks/x.output` through the shell reads a background run's output too
               const read = [...outputFiles.keys()].find((f) => evs[0].cmd.includes(f));
