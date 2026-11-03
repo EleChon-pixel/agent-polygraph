@@ -1,6 +1,6 @@
 # Publishing agent-polygraph to npm
 
-**Latest public release verified during development:** `agent-polygraph@0.3.2`. A clean public npm install on 3 November 2026 verified its CLI, demo, README, `explain`, `doctor` and integrity metadata after [OIDC staging](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41689551085). Published versions are immutable. The source now prepares 0.4.0; GitHub commits alone do not publish npm releases. See [v0.4.0 notes](releases/v0.4.0.md).
+**Latest public release verified:** `agent-polygraph@0.4.0`, installed and checked from npm on 3 November 2026. Its [GitHub Release](https://github.com/EleChon-pixel/agent-polygraph/releases/tag/v0.4.0) and npm `gitHead` identify source commit `6c529ebd2717f51f5a71a30c03a7862d3033a875`. The [public-install check](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41697406992) passed after [OIDC staging](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41695697316). Published versions are immutable. The source now prepares the README-only 0.4.1 patch; GitHub commits alone do not publish npm releases. See [v0.4.1 notes](releases/v0.4.1.md).
 
 ## Published v0.3.0
 
@@ -45,7 +45,7 @@ node scripts/release-check.mjs
 
 The archived `0.3.0` tarball cannot be modified in place. The published `0.3.1` patch corrects outdated version and feature-availability language in the README without changing runtime behavior. The public npm install and the corrected README were verified; see [v0.3.1 release notes](releases/v0.3.1.md).
 
-## Prepared evidence patch (v0.3.2)
+## Published evidence patch (v0.3.2)
 
 Version 0.3.2 was published and verified from the public npm registry on 3 November 2026. See [v0.3.2 release notes](releases/v0.3.2.md) and the [utility review](usefulness-review.md). Its exact npm source commit is `c3cb6c329c5a2621319f74f9ecd2690bb864b33e`; later source changes do not alter that tarball. Users of shell integration should regenerate the copied script after upgrading with `agent-polygraph record --install --shell`.
 
