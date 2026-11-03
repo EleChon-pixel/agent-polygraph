@@ -73,7 +73,7 @@ Guard (stop unbacked "tests pass" claims as they happen):
       --mode claims|strict|verify  transcript claims (default), strict claims, or executable verification
       --test-command <cmd>   explicit project test command for verify mode
       --timeout <seconds>    command deadline (default 60, max 300)
-      --max-attempts <n>     verification executions per human turn (default 2, max 5)
+      --max-attempts <n>     verification attempts per repair cycle (default 2, max 5)
       --cache-seconds <n>    opt-in unchanged-tree pass reuse (default 0, max 3600)
       --on-unknown stop|warn  unresolved verification policy (default stop)
       --cwd <dir>           fixed verification project; installer binds the current folder
@@ -271,7 +271,7 @@ async function guard(argv) {
   if (values.install) {
     if (mode === "verify") {
       console.log(`\nVerification project: ${verification.cwd}\nTest command: ${verification.testCommand}`);
-      console.log(`Timeout: ${verification.timeout}s; attempts per human turn: ${verification.maxAttempts}; pass cache: ${verification.cacheSeconds}s; unknown: ${verification.onUnknown}.`);
+      console.log(`Timeout: ${verification.timeout}s; attempts per repair cycle: ${verification.maxAttempts}; pass cache: ${verification.cacheSeconds}s; unknown: ${verification.onUnknown}.`);
     } else console.log(`\nHook command: ${results[0].command}`);
     console.log(mode === "verify" ? "Verification runs the configured command even without a claim, rechecks repairs, and stops with a visible unresolved result when the bounded repair budget is exhausted." : mode === "strict" ? "Strict mode also challenges inconclusive passing-test claims and reports unresolved follow-ups." : "When a final message says tests pass without a passing run after the last edit, the agent is asked once to rerun them.");
     if (results.some((r) => r.agent === "codex")) {

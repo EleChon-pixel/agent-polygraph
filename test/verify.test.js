@@ -146,11 +146,16 @@ test("strict transcript mode challenges ambiguous claims but keeps legacy behavi
 
 test("installed verification commands survive shell quoting and bind policy timeout", async () => {
   const p = project();
-  const command = `${node} -e "console.log('a quote, $HOME and %PATH%')"`;
+  // The configured command retains its shell's normal expansion rules. Put
+  // metacharacters in a valid comment rather than JavaScript source into which
+  // cmd.exe would expand PATH and inject invalid escape sequences.
+  const command = `${node} check.cjs` + (process.platform === "win32" ? ' & rem "a quote, $HOME and %PATH%"' : ' # a quote, $HOME and %PATH%');
   const result = install({ cwd: p.cwd, agents: ["claude"], mode: "verify", testCommand: command, command: `${node} ${JSON.stringify(cli)} guard`, timeout: 5 });
   const configured = JSON.parse(fs.readFileSync(result[0].file, "utf8")).hooks.Stop[0].hooks[0];
   assert.equal(configured.timeout, 35);
   assert.ok(!configured.command.includes("%PATH%"));
+  const encoded = /--verify-config ([A-Za-z0-9_-]+)/.exec(configured.command)[1];
+  assert.equal(JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")).testCommand, command);
   const child = spawnSync(configured.command, { shell: true, cwd: p.cwd, input: JSON.stringify(p.payload), encoding: "utf8" });
   assert.equal(child.status, 0, child.stderr);
   assert.equal(child.stdout, "");

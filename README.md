@@ -100,7 +100,7 @@ agent-polygraph guard --install --mode verify --test-command "npm test"
 agent-polygraph guard --status
 ```
 
-`verify` runs that command in the fixed installation folder at every Stop, including continued stops. A fresh passing result permits stopping. A failure sends the agent back to repair the cause, and the command runs again afterward. The default budget is **two executions per human turn**. If verification is still failing or inconclusive, the hook stops automatic continuation and displays an unresolved result requiring manual attention. Changing the final answer or setting `stop_hook_active` does not bypass executable verification.
+`verify` runs that command in the fixed installation folder at every Stop, including continued stops. A fresh passing result permits stopping. A failure sends the agent back to repair the cause, and the command runs again afterward. The default budget is **two consecutive attempts per repair cycle** (reset after a pass or a new human turn). If verification is still failing or inconclusive, the hook stops automatic continuation and displays an unresolved result requiring manual attention. Changing the final answer or setting `stop_hook_active` does not bypass executable verification.
 
 The default command deadline is 60 seconds (`--timeout 1..300`). Pass caching is **off**. For slow, locally deterministic suites you can opt into `--cache-seconds 60`: a pass can be reused only for the same configured command/session, an unchanged Git working-tree fingerprint and environment, and within that lifetime. Configuration, tests, source and other non-ignored files are included. Ignored files and external services are not fingerprinted, so leave caching off when they can affect results.
 
