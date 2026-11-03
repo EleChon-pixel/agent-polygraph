@@ -1,6 +1,6 @@
 # Publishing agent-polygraph to npm
 
-**Published:** `agent-polygraph@0.3.1` is live as npm's `latest` release. It is a documentation-only patch to v0.3.0 correcting the archived README. The [GitHub OIDC trusted-publisher staging run](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41257569864) generated signed provenance and required maintainer npm 2FA approval. The [public-registry verification](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41257853213) installed the released package, checked the bundled README against the repository, and exercised `explain` and `doctor`. Previously published npm packages remain immutable; GitHub commits alone do not publish npm releases.
+**Latest public release verified during development:** `agent-polygraph@0.3.2`. A clean public npm install on 3 November 2026 verified its CLI, demo, README, `explain`, `doctor` and integrity metadata after [OIDC staging](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41689551085). Published versions are immutable. The source now prepares 0.4.0; GitHub commits alone do not publish npm releases. See [v0.4.0 notes](releases/v0.4.0.md).
 
 ## Published v0.3.0
 
@@ -47,7 +47,7 @@ The archived `0.3.0` tarball cannot be modified in place. The published `0.3.1` 
 
 ## Prepared evidence patch (v0.3.2)
 
-The source prepares 0.3.2 for the process below; this is not a claim of npm publication. See [v0.3.2 release notes](releases/v0.3.2.md) and the [utility review](usefulness-review.md). Keep the published 0.3.1 record above until public-registry verification confirms the new release. Users of shell integration should regenerate the copied script after upgrading with `agent-polygraph record --install --shell`.
+Version 0.3.2 was published and verified from the public npm registry on 3 November 2026. See [v0.3.2 release notes](releases/v0.3.2.md) and the [utility review](usefulness-review.md). Its exact npm source commit is `c3cb6c329c5a2621319f74f9ecd2690bb864b33e`; later source changes do not alter that tarball. Users of shell integration should regenerate the copied script after upgrading with `agent-polygraph record --install --shell`.
 
 ## Stage and approve a future version
 

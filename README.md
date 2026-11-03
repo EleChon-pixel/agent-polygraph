@@ -73,7 +73,7 @@ This writes `polygraph.html`, a self-contained card with numbers only. Prompts, 
 
 <img src="docs/card.png" alt="agent-polygraph report card from my own sessions" width="600">
 
-## Catch unbacked claims as they happen (optional)
+## Guard policies (optional)
 
 ```sh
 npx agent-polygraph guard --install            # this project (.claude/settings.json, .codex/hooks.json)
@@ -91,6 +91,27 @@ It blocks at most once per stop, looks only at the final message (so a claim the
 
 I tested it with both agents in a staged setup: they were told to edit code after a test run and then claim the tests pass (the GIF above is one of these runs). Both were stopped, reran `npm test` and reported the failure. Codex needs one extra step: it only runs hooks you have approved, and only reads a project's `.codex/` folder if you trust it. After installing, open `codex` in the project once, trust the folder and approve the hook.
 
+### Verify the project even when the agent makes no test claim
+
+Choose the test command yourself when installing the project hook:
+
+```sh
+agent-polygraph guard --install --mode verify --test-command "npm test"
+agent-polygraph guard --status
+```
+
+`verify` runs that command in the fixed installation folder at every Stop, including continued stops. A fresh passing result permits stopping. A failure sends the agent back to repair the cause, and the command runs again afterward. The default budget is **two executions per human turn**. If verification is still failing or inconclusive, the hook stops automatic continuation and displays an unresolved result requiring manual attention. Changing the final answer or setting `stop_hook_active` does not bypass executable verification.
+
+The default command deadline is 60 seconds (`--timeout 1..300`). Pass caching is **off**. For slow, locally deterministic suites you can opt into `--cache-seconds 60`: a pass can be reused only for the same configured command/session, an unchanged Git working-tree fingerprint and environment, and within that lifetime. Configuration, tests, source and other non-ignored files are included. Ignored files and external services are not fingerprinted, so leave caching off when they can affect results.
+
+The before/after fingerprints must be complete and match. A timeout, unreadable snapshot, oversized or linked file, or net file change during testing leaves verification inconclusive. The default `--on-unknown stop` challenges it within the same bounded budget. `--on-unknown warn` explicitly permits an inconclusive stop with a warning; it never records a pass. Verification needs a Git checkout for complete fingerprints. Generated test outputs should be ignored so producing a report does not look like changing the tested inputs. Before/after comparisons detect net changes, not transient changes reverted during a run.
+
+The selected command is the coverage contract: choose the full suite if that is what you want enforced. The guard cannot establish that a weak test detects every bug. It does not choose commands from the agent's messages or automatically execute a repository-discovered configuration. The installed hook stores the approved policy, including its fixed folder, and Codex requires review when that hook definition changes. Executable mode is project-specific; `--global` is rejected. Test processes run with your normal hook permissions; this is not a sandbox or a defense against an agent that can edit its own hook configuration.
+
+`guard --status` shows local outcomes, execution counts and repair attempts. Receipts contain hashes, timing and outcomes, not command text, source or raw output. A crashed hook may leave a lock; inspect the process and status before removing that lock from the private guard directory. The existing `doctor` command still checks hook wiring.
+
+For transcript-only checking with visible ambiguity, use `guard --install --mode strict`. It also challenges inconclusive passing-test claims and surfaces unresolved repeated claims. It does not run tests or discover unclaimed failures. The default `--mode claims` retains the original one-cycle, definite-claim-only behavior; the plugin uses that default unless a project install overrides it.
+
 ### Do you need it?
 
 Maybe not. Two simpler setups also work, and they are more thorough:
@@ -98,9 +119,9 @@ Maybe not. Two simpler setups also work, and they are more thorough:
 - A Stop hook that runs your test suite after every turn and gives the agent the result. This also catches breakage when the agent doesn't claim anything.
 - A Stop hook that always asks the agent to double-check its results. When I tried this on small tasks where the agent had edited code after its last run, it reran the tests every time (6 of 6, Claude Haiku).
 
-The trade-off is cost. Both fire on every stop, so every turn ends with a test run, and the second also adds a model turn, even when nothing changed or nothing was claimed. A test-running hook also has to know each project's test command and setup (a virtualenv, environment variables, a subfolder, a database). `guard` runs nothing: it reads the session in well under a second and only sends the agent back when the final message claims a pass that no run after the last edit supports (about 6% of claims in my logs), naming the edit that made the run stale.
+The trade-off is cost. Both fire on every stop, so every turn ends with a test run, and the second also adds a model turn, even when nothing changed or nothing was claimed. A test-running hook also has to know each project's test command and setup (a virtualenv, environment variables, a subfolder, a database). The default `claims` policy runs nothing: it reads the session in well under a second and only sends the agent back when the final message claims a pass that no run after the last edit supports (about 6% of claims in my logs), naming the edit that made the run stale.
 
-If your suite runs in a few seconds and needs no setup, running it on every stop is the better choice. `guard` is for suites that are slow or fiddly to run, and for when you don't want an extra turn on every stop.
+If your suite runs in a few seconds and needs no setup, running it on every stop provides stronger failure coverage. The `verify` policy does that with bounded repairs and local status receipts. The `claims` policy is for when you want fewer rerun requests and accept narrower coverage. `verify` with caching can reduce repeat executions, but reusing a pass assumes unchanged ignored inputs and external dependencies.
 
 ### As a Claude Code plugin
 

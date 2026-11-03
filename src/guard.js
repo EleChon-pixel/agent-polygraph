@@ -12,22 +12,31 @@ import { analyzeSession } from "./analyze.js";
 import { findTestClaim } from "./classify.js";
 import { applyRecords } from "./record.js";
 import { readSettings, writeSettings } from "./safe-config.js";
+import { verifyOptions } from "./verify.js";
 
 
 /** Hook entry point: read the Stop payload on stdin, maybe print a block decision. */
-export async function runHook(stdinText, { plugin = false } = {}) {
+export async function runHook(stdinText, { plugin = false, mode = "claims", ...verification } = {}) {
   let payload;
   try {
     payload = JSON.parse(stdinText || "{}");
   } catch {
-    return null;
+    return mode === "claims" ? null : { continue: false, stopReason: "agent-polygraph: invalid Stop payload; verification remains unresolved." };
   }
-  if (payload.stop_hook_active) return null; // we already sent the agent back once
+  if (!["claims", "strict", "verify"].includes(mode)) throw Error("--mode must be claims, strict or verify");
+  if (payload.stop_hook_active && mode === "claims") return null; // legacy single-cycle behavior
   // The Claude Code plugin's hook steps aside when `guard --install` put one in settings
   // too, so the agent isn't sent back twice with the same message.
   if (plugin && settingsHasGuard(payload.cwd)) return null;
   const transcript = payload.transcript_path;
-  if (!transcript || !fs.existsSync(transcript)) return null;
+  if (!transcript || !fs.existsSync(transcript)) {
+    if (mode === "verify") {
+      const { verifyStop } = await import("./verify.js");
+      return verifyStop(payload, null, verification);
+    }
+    if (mode === "strict") return { continue: false, stopReason: "agent-polygraph: transcript unavailable; claim verification is unresolved." };
+    return null;
+  }
 
   const isCodex = sniffCodex(transcript);
   const src = isCodex ? codex : claude;
@@ -38,7 +47,16 @@ export async function runHook(stdinText, { plugin = false } = {}) {
       for (const f of fs.readdirSync(subDir)) if (f.endsWith(".jsonl")) files.push(path.join(subDir, f));
     } catch {}
   }
-  const session = await src.parse({ agent: src.name, id: "live", files });
+  let session;
+  try { session = await src.parse({ agent: src.name, id: "live", files }); }
+  catch (e) {
+    if (mode !== "verify") throw e;
+    session = null; // a real configured test does not depend on a readable transcript
+  }
+  if (mode === "verify") {
+    const { verifyStop } = await import("./verify.js");
+    return verifyStop(payload, session, verification);
+  }
   if (payload.cwd && !session.cwd) session.cwd = payload.cwd;
   // snapshots and terminal runs from `agent-polygraph record`, if installed
   try {
@@ -67,6 +85,15 @@ export async function runHook(stdinText, { plugin = false } = {}) {
 
   const result = analyzeSession(session);
   const detail = result.findings.findLast((f) => f.type === "claim" && f.ts === final.ts)?.detail;
+  if (mode === "strict") {
+    const uncertain = result.findings.findLast((f) => f.type === "unclear" && f.ts === final.ts)?.detail;
+    if (!detail && !uncertain) return null;
+    const reason = detail ? reasonFor(detail) : `agent-polygraph: the claim "${uncertain.claim}" has inconclusive evidence (${uncertain.why}). Run the relevant tests or explicitly report that verification is unresolved.`;
+    // Surface repeated unresolved passing claims. Only executable verification
+    // can check repairs independently of what the agent chooses to say.
+    if (payload.stop_hook_active) return { continue: false, stopReason: reason + " Manual review is required." };
+    return { decision: "block", reason };
+  }
   if (!detail) return null; // backed, or nothing we can judge
   return { decision: "block", reason: reasonFor(detail) };
 }
@@ -171,7 +198,20 @@ const HOOKS = {
 export function install(opts) {
   const sub = opts.sub || "guard";
   const spec = HOOKS[sub];
-  const command = opts.command || hookCommand(sub);
+  let command = opts.command || hookCommand(sub);
+  let hookTimeout = spec.timeout;
+  if (sub === "guard" && opts.mode && opts.mode !== "claims") {
+    if (opts.mode === "verify") {
+      if (opts.global) throw Error("verify mode is project-specific; omit --global and install it in each project");
+      const config = verifyOptions({ ...opts, cwd: opts.cwd || process.cwd() });
+      // One base64url token avoids shell interpolation of quotes, $ and % in
+      // test commands and paths on Bash, PowerShell and cmd.exe.
+      const encoded = Buffer.from(JSON.stringify(config)).toString("base64url");
+      command += ` --mode verify --verify-config ${encoded}`;
+      hookTimeout = config.timeout + 30; // bounded snapshot overhead plus command deadline
+    } else if (opts.mode === "strict") command += " --mode strict";
+    else throw Error("--mode must be claims, strict or verify");
+  }
   const isOurs = (h) => isOurHook(h, sub);
   return targets(opts).map(({ agent, file }) => {
     const config = readJson(file);
@@ -180,14 +220,15 @@ export function install(opts) {
     const ours = stop.flatMap((g) => (g.hooks || []).filter(isOurs));
     let changed = false;
     if (!ours.length) {
-      const group = { hooks: [{ type: "command", command, timeout: spec.timeout }] };
+      const group = { hooks: [{ type: "command", command, timeout: hookTimeout }] };
       if (spec.matcher[agent]) group.matcher = spec.matcher[agent];
       stop.push(group);
       changed = true;
     } else {
       // upgrade an older form (another version, npx vs global) in place; drop duplicates
-      if (ours[0].command !== command) {
+      if (ours[0].command !== command || ours[0].timeout !== hookTimeout) {
         ours[0].command = command;
+        ours[0].timeout = hookTimeout;
         changed = true;
       }
       for (const g of stop) {

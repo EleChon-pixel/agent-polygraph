@@ -40,7 +40,7 @@ function verifyPrivateFile(fd, file = null) {
     fs.fchmodSync(fd, 0o600);
   }
 }
-function secureDirectory(dir) {
+export function secureDirectory(dir) {
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   // Act on the opened directory, not on a pathname that may be replaced
   // with a symlink between an lstat() check and chmod().
@@ -60,7 +60,7 @@ function secureDirectory(dir) {
     fs.closeSync(fd);
   }
 }
-function secureWrite(file, data, append = false) {
+export function secureWrite(file, data, append = false) {
   secureDirectory(path.dirname(file));
   // Never truncate before validating an existing file. O_NOFOLLOW rejects final
   // symlinks, and nlink/owner checks reject hard links and unrelated files.
@@ -216,7 +216,7 @@ function sourceFingerprint(root, name, key) {
   }
 }
 
-export function snapshot(cwd) {
+export function snapshot(cwd, { allFiles = false } = {}) {
   const git = (args, options = {}) => execFileSync("git", args, {
     cwd, encoding: options.encoding ?? "utf8", stdio: ["ignore", "pipe", "ignore"],
     timeout: 8000, maxBuffer: 16 << 20,
@@ -229,7 +229,7 @@ export function snapshot(cwd) {
   let total = 0;
   let count = 0;
   for (const name of paths) {
-    if (!isCodePath(name)) continue;
+    if (!allFiles && !isCodePath(name)) continue;
     if (++count > MAX_SNAPSHOT_FILES) { complete = false; break; }
     try {
       const data = sourceFingerprint(root, name, key);
@@ -237,8 +237,10 @@ export function snapshot(cwd) {
       if (total + data.bytes > MAX_SNAPSHOT_BYTES) { complete = false; break; }
       total += data.bytes;
       files[name] = data.digest;
-    } catch {
-      complete = false;
+    } catch (e) {
+      // Git lists deleted tracked paths until staged. Their absence is part of
+      // the tree, not an unreadable source; other read failures stay uncertain.
+      if (e.code !== "ENOENT" || fs.existsSync(path.join(root, name))) complete = false;
     }
   }
   return { root, files, complete };
