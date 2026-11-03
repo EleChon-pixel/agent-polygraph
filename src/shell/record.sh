@@ -19,6 +19,7 @@ __apg_esc() {
 }
 __apg_pre() {
   __apg_runner=
+  __apg_scope=unknown
   # Conservative: do not treat compound commands (e.g. npm test; true) as proof.
   case "$1" in *';'*|*'|'*|*'&'*|*'`'*|*'$('*|*$'\n'*) return 0 ;; esac
   local c="${1#${1%%[![:space:]]*}}"
@@ -34,6 +35,11 @@ __apg_pre() {
     "vitest"|"vitest "*|"jest"|"jest "*) __apg_runner="vitest run" ;;
   esac
   [ -n "$__apg_runner" ] || return 0
+  # Only exact, unfiltered invocations establish full-suite scope. Arguments
+  # are never persisted; every other supported invocation keeps unknown scope.
+  case "$c" in
+    "pytest"|"pytest -q"|"python -m pytest"|"python3 -m pytest"|"npm test"|"npm run test"|"node --test"|"go test"|"cargo test"|"mvn test"|"gradle test"|"./gradlew test"|"dotnet test"|"vitest run"|"jest") __apg_scope=full ;;
+  esac
   __apg_dir=$PWD
   __apg_t0=$(__apg_now)
 }
@@ -42,8 +48,8 @@ __apg_post() {
   if [ -n "$__apg_runner" ]; then
     # The CLI validates input and writes with O_NOFOLLOW; shell redirection
     # cannot be used here because it would follow an attacker-created symlink.
-    printf '{"v":2,"kind":"terminal","start":%s,"end":%s,"exit":%s,"cwd":"%s","runner":"%s"}\n' \
-      "$__apg_t0" "$(__apg_now)" "$s" "$(__apg_esc "$__apg_dir")" "$__apg_runner" |
+    printf '{"v":2,"kind":"terminal","start":%s,"end":%s,"exit":%s,"cwd":"%s","runner":"%s","scope":"%s"}\n' \
+      "$__apg_t0" "$(__apg_now)" "$s" "$(__apg_esc "$__apg_dir")" "$__apg_runner" "$__apg_scope" |
       "$__apg_node" "$__apg_entry" record --shell-event >/dev/null 2>&1
     __apg_runner=
   fi

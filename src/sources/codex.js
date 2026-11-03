@@ -47,6 +47,7 @@ export async function parse(entry) {
 
   for (const [i, file] of entry.files.entries()) {
     const isSub = i > 0;
+    let fileCwd = null;
     const calls = new Map(); // call_id -> pending call
     const running = new Map(); // exec session id -> cmd event still running
     const cells = new Map(); // code-mode cell id -> call whose script is still running
@@ -75,12 +76,14 @@ export async function parse(entry) {
       const p = rec.payload || {};
       if (rec.type === "session_meta") {
         sawMeta = true;
+        fileCwd = p.cwd || fileCwd;
         if (!isSub && p.cli_version) session.versions.add(p.cli_version);
         if (!isSub && p.cwd) session.cwd = p.cwd;
         if (!isSub && p.git?.branch) session.branch = p.git.branch;
         continue;
       }
       if (rec.type === "turn_context") {
+        fileCwd = p.cwd || fileCwd;
         if (p.model) session.models.add(p.model);
         if (!session.cwd && p.cwd) session.cwd = p.cwd;
         continue;
@@ -137,6 +140,9 @@ export async function parse(entry) {
           } else if (p.name === "write_stdin") {
             const m = /session_id"?\s*:\s*(\d+)/.exec(input);
             if (m) call.stdinSessions = [m[1]];
+          }
+          if (isSub) for (const a of call.actions) {
+            if (a.ev && !a.ev.workdir) a.ev.workdir = fileCwd || undefined;
           }
           if (call.actions.length || call.stdinSessions.length || call.cell) calls.set(p.call_id, call);
           break;

@@ -8,7 +8,7 @@ import {
   isTestLogRead,
   outcomeFromOutput,
   testOutcome,
-  findTestClaim,
+  findTestClaims,
   isTestPath,
   isCodePath,
   weakening,
@@ -204,7 +204,7 @@ export function analyzeSession(session) {
     if (outcome) {
       const prev = runs.get(runStart.i);
       const count = passedCount(runStart.output || ev.output) ?? run.recorded?.passed ?? prev?.count ?? null;
-      runs.set(runStart.i, { i: runStart.i, ts: run.ts, outcome, cmd: run.cmd, tail: tail(runStart.output || ev.output), sub: run.sub, dir: runStart.dir, count, full: isFullSuite(run.cmd), tree: run.tree, external: run.external });
+      runs.set(runStart.i, { i: runStart.i, ts: run.ts, outcome, cmd: run.cmd, tail: tail(runStart.output || ev.output), sub: run.sub, dir: runStart.dir, count, full: run.scope === "unknown" ? false : isFullSuite(run.cmd), scope: run.scope, tree: run.tree, external: run.external });
       if (lastTest.i === runStart.i) lastTest.count = count;
     }
   };
@@ -343,73 +343,85 @@ export function analyzeSession(session) {
         observe(ev);
         break;
       case "say": {
-        const claim = findTestClaim(ev.text);
-        if (!claim) {
+        const claims = findTestClaims(ev.text);
+        if (!claims.length) {
           if (session.ci) judgeCiClaim(ev);
           break;
         }
-        let verdict;
-        let why; // for "unknown": which piece of evidence is missing
-        // Judge the claim against the run it talks about: "31/31 VM tests pass" refers to
-        // the run that reported 31 passed, "test_api.py passes" to a run of that file,
-        // "the full suite passes" to the latest run as large as the session's full runs.
-        // Without such a hint, the latest run.
-        const ref = referencedRun(claim, runs, lastTest) || lastTest;
-        // A passing targeted test cannot, by itself, verify an explicit
-        // "full suite passes" claim. When scope isn't established, abstain.
-        const focusedOnly = claimsFullSuite(claim) && ref &&
-          !(runs.get(ref.i)?.full ?? ref.full) &&
-          ![...runs.values()].some((r) => r.full && sameDir(r.dir, ref.dir));
-        let staleEdit = ref && codeEdits.findLast((e) => e.i > ref.i && within(e.abs, ref.dir));
-        // a change we couldn't follow, settled by comparing `record` snapshots of the
-        // working tree after the run and after the change
-        let uncertain = ref && lastUncertain > ref.i;
-        if (ref && uncertain && !staleEdit) {
-          const changed = snapshotDiff(ref.tree, lastSnap && lastSnap.i >= lastUncertain ? lastSnap.tree : null);
-          if (changed) {
-            uncertain = false;
-            s.evidence.snapshot = (s.evidence.snapshot || 0) + 1;
-            // the whole checkout is compared; only changes where the test ran count, as for edits
-            // Git may report the canonical checkout path even when the transcript
-            // used a symlinked directory (/var vs /private/var on macOS), and
-            // Windows requires native path joining for drive-letter roots.
-            const canonical = (p) => {
-              try { return fs.realpathSync.native(p); } catch { return p; }
-            };
-            const canonicalRoot = canonical(ref.tree.root);
-            const canonicalDir = canonical(ref.dir || session.cwd || ref.tree.root);
-            const code = changed.filter((p) => isCodePath(p) && !SCRATCH_NAME.test(p.split("/").pop()) &&
-              within(path.resolve(canonicalRoot, ...p.split("/")), canonicalDir));
-            if (code.length) staleEdit = { path: code[0], snapshot: true };
+        ev.claimVerdicts = [];
+        for (const claim of claims) {
+          let verdict;
+          let why; // for "unknown": which piece of evidence is missing
+          // Judge the claim against the run it talks about: "31/31 VM tests pass" refers to
+          // the run that reported 31 passed, "test_api.py passes" to a run of that file,
+          // "the full suite passes" to the latest run as large as the session's full runs.
+          // Without such a hint, the latest run.
+          const ref = referencedRun(claim, runs, lastTest) || lastTest;
+          // A passing targeted test cannot, by itself, verify an explicit
+          // "full suite passes" claim. When scope isn't established, abstain.
+          const focusedOnly = claimsFullSuite(claim) && ref &&
+            !(runs.get(ref.i)?.full ?? ref.full) &&
+            ![...runs.values()].some((r) => r.full && sameDir(r.dir, ref.dir));
+          let staleEdit = ref && codeEdits.findLast((e) => e.i > ref.i && within(e.abs, ref.dir));
+          // a change we couldn't follow, settled by comparing `record` snapshots of the
+          // working tree after the run and after the change
+          let uncertain = ref && lastUncertain > ref.i;
+          if (ref && uncertain && !staleEdit) {
+            const changed = snapshotDiff(ref.tree, lastSnap && lastSnap.i >= lastUncertain ? lastSnap.tree : null);
+            if (changed) {
+              uncertain = false;
+              s.evidence.snapshot = (s.evidence.snapshot || 0) + 1;
+              // the whole checkout is compared; only changes where the test ran count, as for edits
+              // Git may report the canonical checkout path even when the transcript
+              // used a symlinked directory (/var vs /private/var on macOS), and
+              // Windows requires native path joining for drive-letter roots.
+              const canonical = (p) => {
+                try { return fs.realpathSync.native(p); } catch { return p; }
+              };
+              const canonicalRoot = canonical(ref.tree.root);
+              const canonicalDir = canonical(ref.dir || session.cwd || ref.tree.root);
+              const code = changed.filter((p) => isCodePath(p) && !SCRATCH_NAME.test(p.split("/").pop()) &&
+                within(path.resolve(canonicalRoot, ...p.split("/")), canonicalDir));
+              if (code.length) staleEdit = { path: code[0], snapshot: true };
+            }
+          }
+          if (!ref) {
+            // a run still in progress, or no edits and no runs (the agent is talking about
+            // something else, like a CV or a doc): nothing to judge
+            verdict = pendingTest >= 0 || !lastCodeEdit ? "unknown" : "no-run";
+            if (verdict === "unknown") why = pendingTest >= 0 ? "test still running" : "no code work in session";
+          } else if (ref.dir && session.cwd &&
+            !codeEdits.some((e) => e.i <= ref.i && e.abs && within(e.abs, ref.dir)) &&
+            ((!within(ref.dir, session.cwd) && !within(session.cwd, ref.dir)) ||
+              (codeEdits.length && !sameDir(ref.dir, session.cwd) &&
+                !claimedCounts(claim).size && !claimedTestFiles(claim).length))) {
+            [verdict, why] = ["unknown", "test ran outside the session checkout"];
+          } else if (staleEdit) verdict = "stale";
+          else if (focusedOnly) [verdict, why] = ["unknown", "no full-suite test run observed"];
+          else if (uncertain) [verdict, why] = ["unknown", "unresolved file change after the run"];
+          // a subagent's failing run in its own worktree says little about the main checkout
+          else if (ref.outcome === "fail") [verdict, why] = ref.sub ? ["unknown", "subagent run failed"] : ["failed"];
+          else if (ref.outcome == null) [verdict, why] = ["unknown", "test result unreadable"];
+          else verdict = "backed";
+          s.claims[verdict]++;
+          ev.claimVerdicts.push({ claim, verdict });
+          if (why) {
+            s.unclear[why] = (s.unclear[why] || 0) + 1;
+            finding("unclear", ev, { why, claim: clip(claim, 240), lastTest: ref && { cmd: clip(ref.cmd, 160), tail: ref.tail } });
+          }
+          if (ref?.external) s.evidence[ref.external] = (s.evidence[ref.external] || 0) + 1;
+          if (verdict !== "backed" && verdict !== "unknown") {
+            finding("claim", ev, {
+              verdict,
+              claim: clip(claim, 240),
+              lastTest: ref && { cmd: clip(ref.cmd, 160), outcome: ref.outcome, ago: ev.ts - ref.ts, tail: ref.tail, matched: ref !== lastTest || undefined },
+              editedAfter: verdict === "stale" ? staleEdit.path : undefined,
+            });
           }
         }
-        if (!ref) {
-          // a run still in progress, or no edits and no runs (the agent is talking about
-          // something else, like a CV or a doc): nothing to judge
-          verdict = pendingTest >= 0 || !lastCodeEdit ? "unknown" : "no-run";
-          if (verdict === "unknown") why = pendingTest >= 0 ? "test still running" : "no code work in session";
-        } else if (staleEdit) verdict = "stale";
-        else if (focusedOnly) [verdict, why] = ["unknown", "no full-suite test run observed"];
-        else if (uncertain) [verdict, why] = ["unknown", "unresolved file change after the run"];
-        // a subagent's failing run in its own worktree says little about the main checkout
-        else if (ref.outcome === "fail") [verdict, why] = ref.sub ? ["unknown", "subagent run failed"] : ["failed"];
-        else if (ref.outcome == null) [verdict, why] = ["unknown", "test result unreadable"];
-        else verdict = "backed";
-        s.claims[verdict]++;
-        ev.verdict = verdict;
-        if (why) {
-          s.unclear[why] = (s.unclear[why] || 0) + 1;
-          finding("unclear", ev, { why, claim: clip(claim, 240), lastTest: ref && { cmd: clip(ref.cmd, 160), tail: ref.tail } });
-        }
-        if (ref?.external) s.evidence[ref.external] = (s.evidence[ref.external] || 0) + 1;
-        if (verdict !== "backed" && verdict !== "unknown") {
-          finding("claim", ev, {
-            verdict,
-            claim: clip(claim, 240),
-            lastTest: ref && { cmd: clip(ref.cmd, 160), outcome: ref.outcome, ago: ev.ts - ref.ts, tail: ref.tail, matched: ref !== lastTest || undefined },
-            editedAfter: verdict === "stale" ? staleEdit.path : undefined,
-          });
-        }
+        // Keep one conservative message-level verdict for existing consumers.
+        const priority = ["stale", "failed", "no-run", "unknown", "backed"];
+        ev.verdict = priority.find((v) => ev.claimVerdicts.some((c) => c.verdict === v));
         break;
       }
       case "user":

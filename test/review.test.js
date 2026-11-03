@@ -254,7 +254,7 @@ test("custom test runners: scripts under tests/, programs named like tests, prin
   for (const [command, out] of [
     ["powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/runner/run.ps1", "48/48 passed"],
     ["./build/frost_smoke.exe 2>&1", ""],
-    ["cd /d/proj && ./build/frost_subsystems.exe", "135 passed, 0 failed"],
+    ["cd /repo && ./build/frost_subsystems.exe", "135 passed, 0 failed"],
   ]) {
     const s = await claudeSession([...editFirst, ...run(command, out)]);
     assert.equal(verdict(s.claims), "backed", command);
