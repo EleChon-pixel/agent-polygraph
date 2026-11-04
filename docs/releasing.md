@@ -1,6 +1,6 @@
 # Publishing agent-polygraph to npm
 
-**Latest public release verified:** `agent-polygraph@0.4.0`, installed and checked from npm on 3 November 2026. Its [GitHub Release](https://github.com/EleChon-pixel/agent-polygraph/releases/tag/v0.4.0) and npm `gitHead` identify source commit `6c529ebd2717f51f5a71a30c03a7862d3033a875`. The [public-install check](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41697406992) passed after [OIDC staging](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41695697316). Published versions are immutable. The source now prepares the README-only 0.4.1 patch; GitHub commits alone do not publish npm releases. See [v0.4.1 notes](releases/v0.4.1.md).
+**Latest public release verified:** `agent-polygraph@0.4.1`, installed and checked from public npm on 4 November 2026. Its [GitHub Release](https://github.com/EleChon-pixel/agent-polygraph/releases/tag/v0.4.1) and npm `gitHead` identify source commit `4df646bc1c716719188df4400102de5b6857c754`. The clean public install verified the version, CLI/demo, doctor/explain and exact corrected README. The separate [GitHub public-install workflow](https://github.com/EleChon-pixel/agent-polygraph/actions/runs/41865750596) was also requested; the clean-install result above was verified locally against public npm. Published versions are immutable, and later documentation changes do not alter their tarballs or move their tags. See [v0.4.1 notes](releases/v0.4.1.md).
 
 ## Published v0.3.0
 
